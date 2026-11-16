@@ -82,13 +82,34 @@
       .calendar-actions{justify-content:flex-end}
       .calendar-actions .button{min-height:44px;padding:8px 10px;font-size:11px}
     }
-    #authScreen{position:fixed;inset:0;z-index:40;background:var(--paper);display:grid;place-items:center;padding:20px}
+    #authScreen{position:fixed;inset:0;z-index:40;background:var(--paper);overflow:auto;padding:clamp(20px,5vw,64px)}
     #authScreen[hidden]{display:none}
-    .auth-card{width:min(420px,100%);padding:27px;background:#fff;border:1px solid #ecece7;border-radius:20px;box-shadow:0 18px 55px #17181612}
+    .auth-landing{max-width:1040px;margin-inline:auto}
+    .landing-brand{margin-bottom:clamp(24px,5vw,52px)}
+    .landing-brand img{width:38px;height:38px}
+    .landing-hero{position:relative;isolation:isolate;overflow:hidden;background:var(--acid);border-radius:26px;padding:clamp(25px,6vw,72px)}
+    .landing-hero::after{content:"";position:absolute;z-index:-1;right:-90px;bottom:-150px;width:340px;height:340px;border:1px solid #26310e33;border-radius:50%;box-shadow:0 0 0 30px #26310e12,0 0 0 64px #26310e0c,0 0 0 100px #26310e09}
+    .landing-hero h1{max-width:12ch;margin:0;font-size:clamp(36px,6.5vw,76px);letter-spacing:-.055em;line-height:1}
+    .landing-hero p{max-width:40ch;margin:20px 0 25px;color:#38401f;line-height:1.55;font-size:clamp(14px,2vw,17px)}
+    .landing-actions{display:flex;flex-wrap:wrap;gap:10px}
+    .landing-actions .button{min-height:44px;font-size:13px;padding-inline:17px}
+    .landing-actions .ghost{border-color:#17181655;background:#fff4}
+    .landing-features{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
+    .landing-feature{padding:18px;min-width:0}
+    .landing-feature h2{margin:0 0 8px;font-size:16px;line-height:1.2}
+    .landing-feature p{margin:0;color:#565a51;font-size:13px;line-height:1.45}
+    .landing-feature:nth-child(1){background:#e8e2ff}
+    .landing-feature:nth-child(2){background:#ffeadb}
+    .landing-feature:nth-child(3){background:#e4f2fe}
+    .auth-card{width:min(420px,100%);margin:clamp(0px,8vh,72px) auto 0;padding:27px;background:#fff;border:1px solid #ecece7;border-radius:20px;box-shadow:0 18px 55px #17181612}
+    @media(max-width:650px){
+      .landing-features{grid-template-columns:1fr}
+      .landing-hero::after{right:-245px;bottom:-240px}
+      .auth-fields input{font-size:16px}
+    }
     .auth-brand{display:flex;align-items:center;gap:9px;font-size:20px;font-weight:800;letter-spacing:-1px}
     .auth-mark{display:grid;place-items:center;width:31px;height:31px;border-radius:10px;background:var(--acid);font-size:21px}
     .auth-card h1{font-size:24px;letter-spacing:-1px;margin:23px 0 7px}
-    .auth-intro{color:var(--muted);font-size:12px;line-height:1.5;margin:0 0 17px}
     .auth-tabs{display:flex;gap:6px;background:#f0f1ec;padding:4px;border-radius:11px;margin-bottom:14px}
     .auth-tabs button{flex:1;border:0;border-radius:8px;background:transparent;padding:9px;color:#676a61;font-weight:700;font-size:12px}
     .auth-tabs button.active{background:white;color:var(--ink);box-shadow:0 1px 4px #17181612}
@@ -105,22 +126,38 @@
   </style>
 </head>
 <body>
-  <section id="authScreen" aria-label="Вход в absurd" hidden>
-    <div class="auth-card">
+  <section id="authScreen" aria-label="Absurd" hidden>
+    <div class="auth-landing" id="authLanding">
+      <header class="auth-brand landing-brand"><img src="./absurd-icon.svg" width="38" height="38" alt=""><span>absurd</span></header>
+      <div class="landing-hero">
+        <h1>Немного порядка. Больше воздуха.</h1>
+        <p>Дела, дедлайны, деньги и цели в одном личном пространстве.</p>
+        <div class="landing-actions">
+          <button type="button" class="button" data-open-auth="signup">Зарегистрироваться</button>
+          <button type="button" class="button ghost" data-open-auth="login">Войти</button>
+        </div>
+      </div>
+      <div class="landing-features">
+        <article class="card landing-feature"><h2>Деньги</h2><p>Планируй доходы, расходы и накопления.</p></article>
+        <article class="card landing-feature"><h2>Календарь и дедлайны</h2><p>Собери дела и сроки, чтобы видеть, что впереди.</p></article>
+        <article class="card landing-feature"><h2>Мечты и цели</h2><p>Записывай идеи и разбивай цели на шаги.</p></article>
+      </div>
+    </div>
+    <div class="auth-card" id="authPanel" hidden>
       <div class="auth-brand"><span class="auth-mark">a</span><span>absurd</span></div>
-      <h1>Твоё пространство</h1>
-      <p class="auth-intro">Создай аккаунт по email или войди.</p>
+      <h1 id="authTitle">Вход</h1>
       <div class="auth-tabs" id="authTabs"><button type="button" data-auth-mode="login" class="active">Войти</button><button type="button" data-auth-mode="signup">Регистрация</button></div>
       <form id="authForm">
-        <div class="auth-fields"><input id="authEmail" type="email" autocomplete="email" placeholder="Email" required><input id="authPassword" type="password" autocomplete="current-password" placeholder="Пароль (не менее 6 символов)" minlength="6" required></div>
-        <button id="authSubmit" class="button auth-submit" type="submit">Войти</button>
-        <p id="authMessage" class="auth-message" aria-live="polite"></p>
+        <div class="auth-fields"><input id="authEmail" type="email" autocomplete="email" aria-label="Email" placeholder="Email" required><input id="authPassword" type="password" autocomplete="current-password" aria-label="Пароль" placeholder="Пароль (не менее 6 символов)" minlength="6" required></div>
+        <button id="authSubmit" class="button auth-submit" type="submit" disabled>Войти</button>
         <div class="auth-actions"><button id="authReset" class="auth-link" type="button">Забыли пароль?</button><span><button id="authResend" class="auth-link" type="button" hidden>Отправить письмо повторно</button><button id="authCheck" class="auth-link" type="button" hidden>Я подтвердил email</button></span></div>
       </form>
+      <p id="authMessage" class="auth-message" aria-live="polite"></p>
+      <button type="button" class="auth-link" id="authBack">На главную</button>
     </div>
   </section>
   <div id="cloudLoading">Загружаю данные аккаунта…</div>
-  <div class="app">
+  <div class="app" inert>
     <aside class="side">
       <a class="brand" href="#home" aria-label="absurd — на главную">
         <svg class="brandmark" viewBox="0 0 40 40" aria-hidden="true"><rect x="2" y="2" width="36" height="36" rx="12" fill="#d6fa58"/><path d="M25 20a7 7 0 1 1-14 0a7 7 0 0 1 14 0M25 13v14" fill="none" stroke="#171816" stroke-width="3.2" stroke-linecap="round"/></svg>
@@ -145,12 +182,12 @@
       <footer class="footer"><span>absurd © 2026</span><span>маленькие шаги тоже движение</span></footer>
     </main>
   </div>
-  <nav class="mobile-nav" id="mobileNav" aria-label="Основная навигация"></nav>
+  <nav class="mobile-nav" id="mobileNav" aria-label="Основная навигация" inert></nav>
   <div id="cloudToast" hidden style="position:fixed;z-index:30;left:50%;bottom:24px;transform:translateX(-50%);background:#171816;color:white;padding:12px 16px;border-radius:12px;max-width:calc(100% - 24px);font:12px system-ui,-apple-system,'Segoe UI',sans-serif"></div>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-firestore-compat.js"></script>
-  <script src="./auth-client.js?v=polytech-3"></script>
+  <script src="./auth-client.js?v=landing-1"></script>
   <script>
   (()=>{
     const KEY='absurd-routine-v1';

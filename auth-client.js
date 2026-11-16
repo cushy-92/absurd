@@ -1,5 +1,11 @@
 (async () => {
   const screen = document.getElementById('authScreen');
+  const landing = document.getElementById('authLanding');
+  const panel = document.getElementById('authPanel');
+  const title = document.getElementById('authTitle');
+  const landingButtons = [...landing.querySelectorAll('[data-open-auth]')];
+  const dashboard = document.querySelector('.app');
+  const mobileNav = document.getElementById('mobileNav');
   const form = document.getElementById('authForm');
   const emailInput = document.getElementById('authEmail');
   const passwordInput = document.getElementById('authPassword');
@@ -13,6 +19,7 @@
   let unverifiedUser = null;
   const say = (text, error = false) => { message.textContent = text; message.classList.toggle('error', error); };
   const announceAuthState = (authenticated) => {
+    dashboard.inert = mobileNav.inert = !authenticated;
     window.absurdAuthenticated = authenticated;
     window.absurdAuthChecked = true;
     window.dispatchEvent(new Event('absurd:auth-checked'));
@@ -35,12 +42,31 @@
   const setMode = (next) => {
     mode = next;
     tabs.forEach(button => button.classList.toggle('active', button.dataset.authMode === mode));
+    title.textContent = mode === 'signup' ? 'Регистрация' : 'Вход';
     submit.textContent = mode === 'signup' ? 'Создать аккаунт' : 'Войти';
     reset.hidden = mode !== 'login';
     passwordInput.autocomplete = mode === 'signup' ? 'new-password' : 'current-password';
-    say(mode === 'signup' ? 'После регистрации подтверди почту по ссылке из письма.' : 'Войди или создай аккаунт.');
+    say(mode === 'signup' ? 'После регистрации подтверди почту по ссылке из письма.' : '');
   };
+  const showAuthPanel = () => {
+    landing.hidden = true;
+    panel.hidden = false;
+    screen.scrollTop = 0;
+  };
+  landingButtons.forEach(button => button.addEventListener('click', () => {
+    setMode(button.dataset.openAuth);
+    showAuthPanel();
+    if (!form.hidden) emailInput.focus();
+  }));
+  document.getElementById('authBack').addEventListener('click', () => {
+    panel.hidden = true;
+    landing.hidden = false;
+    passwordInput.value = '';
+    screen.scrollTop = 0;
+    landingButtons.find(button => button.dataset.openAuth === mode)?.focus();
+  });
   tabs.forEach(button => button.addEventListener('click', () => setMode(button.dataset.authMode)));
+  setMode('login');
 
   try {
     if (!window.firebase) throw new Error('Firebase SDK не загрузился.');
@@ -167,12 +193,16 @@ const firebaseConfig = {
         } catch {
           screen.hidden = false;
           announceAuthState(false);
+          showAuthPanel();
           say('Не удалось проверить аккаунт. Попробуй войти ещё раз.', true);
         }
       } else {
         screen.hidden = false;
         announceAuthState(false);
-        if (unverifiedUser) say('Открой письмо с подтверждением email, затем вернись сюда и войди. Проверь папку «Спам».');
+        if (unverifiedUser) {
+          showAuthPanel();
+          say('Открой письмо с подтверждением email, затем вернись сюда и войди. Проверь папку «Спам».');
+        }
       }
     });
 
@@ -218,12 +248,14 @@ const firebaseConfig = {
       try { await unverifiedUser.sendEmailVerification(); say('Письмо с подтверждением отправлено ещё раз.'); }
       catch (error) { say(errors[error.code] || 'Не удалось отправить письмо. Попробуй позже.', true); }
     });
+    submit.disabled = false;
   } catch (error) {
     screen.hidden = false;
+    showAuthPanel();
     form.hidden = true;
     document.getElementById('authTabs').hidden = true;
+    landingButtons.forEach(button => { button.disabled = true; });
     announceAuthState(false);
     say(error.message || 'Сервис регистрации не настроен.', true);
   }
-  setMode('login');
 })();
