@@ -92,13 +92,16 @@ const firebaseConfig = {
       watchLinks(onChange, onError) {
         return polytechRef('polytechLinks').onSnapshot(doc => onChange(doc.data()?.botUid || ''), onError);
       },
-      watchDeadlines(botUid, onChange, onError) {
+      watchSnapshot(botUid, onChange, onError) {
         return polytechRef('polytechDeadlines').onSnapshot(doc => {
           const value = doc.data();
-          if (value?.botUid !== botUid) { onChange([]); return; }
+          if (value?.botUid !== botUid) { onChange([], []); return; }
           try {
             const rows = JSON.parse(value.snapshot);
-            onChange(Array.isArray(rows) ? rows : []);
+            if (!Array.isArray(rows)) throw new Error('Unexpected PolytechBot snapshot');
+            const schedule = rows.find(row => row?.key === '$ruz-schedule' && row.kind === 'ruz-schedule');
+            const weeks = Object.values(schedule?.weeks || {});
+            onChange(rows.filter(row => row?.key !== '$ruz-schedule'), weeks.flatMap(week => Array.isArray(week) ? week : []));
           } catch { onError(); }
         }, onError);
       },

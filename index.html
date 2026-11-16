@@ -150,7 +150,7 @@
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-firestore-compat.js"></script>
-  <script src="./auth-client.js?v=polytech-2"></script>
+  <script src="./auth-client.js?v=polytech-3"></script>
   <script>
   (()=>{
     const KEY='absurd-routine-v1';
@@ -202,7 +202,8 @@
       const date = event.repeatDays ? today : (event.date || today);
       if (!event.time) return date < today;
       const endDate=calendarDateAfter(date, event.endDayOffset||0);
-      return new Date(endDate+'T'+(event.endTime||event.time)).getTime() <= now.getTime();
+      const zone=event.fromRuz?'+03:00':'';
+      return new Date(endDate+'T'+(event.endTime||event.time)+zone).getTime() <= now.getTime();
     }
     function eventDone(event){return Boolean(event.done) || eventTimePassed(event)}
     function scheduleItems(limit){return data.events.map((e,index)=>({...e,index})).filter(occursToday).sort((a,b)=>(a.time||'').localeCompare(b.time||'')).slice(0,limit).map(e=>e.repeatDays?`<div class="list-item ${eventTimePassed(e)?'done':''}"><span class="tiny-icon orange">${icons.schedule}</span><button type="button" class="item-copy event-open" data-event-details="${e.index}"><span class="item-title">${safe(e.title)}</span><span class="item-meta">${safe(eventRange(e))} · повтор</span></button><span class="tag">${eventTimePassed(e)?'прошло':'сегодня'}</span></div>`:`<div class="list-item ${eventDone(e)?'done':''}"><input class="check" type="checkbox" data-event="${e.index}" ${eventDone(e)?'checked':''} aria-label="Отметить ${safe(e.title)}"><button type="button" class="item-copy event-open" data-event-details="${e.index}"><span class="item-title">${safe(e.title)}</span><span class="item-meta">${safe(eventRange(e))}</span></button><span class="tag">${eventDone(e)?'готово':'сегодня'}</span></div>`).join('')}
@@ -292,6 +293,7 @@
       return deadline.date===todayISO()?'Сегодня':'';
     }
     let polytechRows=[];
+    let ruzLessons=[];
     let polytechBotUid='';
     let polytechStatus='';
     let stopPolytechLinks=()=>{};
@@ -305,7 +307,11 @@
       }));
     }
     function renderPolytech(){
-      if(cloudReady&&(page==='deadlines'||page==='account'))renderSafe();
+      if(cloudReady&&['deadlines','account','schedule'].includes(page)){
+        const historyOpen=$('.past-events')?.open;
+        renderSafe();
+        if(historyOpen&&$('.past-events'))$('.past-events').open=true;
+      }
     }
     function startPolytech(){
       stopPolytechLinks();
@@ -314,13 +320,25 @@
         stopPolytechDeadlines();
         polytechBotUid=botUid;
         polytechRows=[];
+        ruzLessons=[];
         polytechStatus=botUid?'Ожидаем первую успешную проверку.':'';
         renderPolytech();
         if(!botUid)return;
-        stopPolytechDeadlines=window.absurdPolytech.watchDeadlines(botUid,rows=>{
+        stopPolytechDeadlines=window.absurdPolytech.watchSnapshot(botUid,(rows,lessons)=>{
           polytechRows=rows.filter(row=>row&&safeMoodleUrl(row.url)&&
             /^\d{4}-\d{2}-\d{2}$/.test(row.date)&&/^\d{2}:\d{2}$/.test(row.time)&&
             typeof row.title==='string'&&/^[a-z0-9.-]+:\d+$/.test(row.key));
+          ruzLessons=lessons.filter(lesson=>lesson&&typeof lesson.title==='string'&&
+            /^\d{4}-\d{2}-\d{2}$/.test(lesson.date)&&
+            /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(lesson.time)&&
+            /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(lesson.endTime)&&
+            lesson.time<lesson.endTime).map(({title,date,time,endTime,type,place,group},ruzIndex)=>({
+              title,date,time,endTime,
+              type:typeof type==='string'?type:'',
+              place:typeof place==='string'?place:'',
+              group:typeof group==='string'?group:'',
+              ruzIndex,fromRuz:true
+            }));
           polytechStatus=polytechRows.length?'Дедлайны синхронизированы.':'Пока нет заданий с датой.';
           renderPolytech();
         },()=>{
@@ -399,6 +417,7 @@
       stopPolytechLinks();
       stopPolytechDeadlines();
       polytechRows=[];
+      ruzLessons=[];
       polytechBotUid='';
       polytechStatus='';
     });
@@ -450,14 +469,25 @@
     function finance(){const type=financeType,isIncome=type==='income',isSaving=type==='saving',isPositive=isIncome||isSaving,records=data.transactions.map((t,index)=>({...t,index})).filter(t=>t.type===type),total=records.reduce((sum,t)=>sum+expectedThisMonth(t),0),title=isSaving?'накопления':isIncome?'доходы':'расходы',action=isSaving?'Отложить деньги':`Добавить ${isIncome?'доход':'расход'}`,sectionTitle=isSaving?'Накопления':isIncome?'Поступления':'Расходы';return `<div class="entry-head"><div><div class="eyebrow">планируй деньги удобно</div><h1>Финансы</h1><p class="page-sub">Учитывай доходы, расходы и то, что откладываешь.</p></div><button class="button" data-action="${type}-form">+ ${action}</button></div>${budgetWarning()}<div class="segment" role="tablist" aria-label="Раздел финансов"><button type="button" role="tab" aria-selected="${isIncome}" class="segment-button ${isIncome?'active':''}" data-finance-tab="income">Доходы</button><button type="button" role="tab" aria-selected="${type==='expense'}" class="segment-button ${type==='expense'?'active':''}" data-finance-tab="expense">Расходы</button><button type="button" role="tab" aria-selected="${isSaving}" class="segment-button ${isSaving?'active':''}" data-finance-tab="saving">Накопления</button></div><div class="entry-stats"><div class="mini-stat"><div class="v ${isPositive?'positive':'negative'}">${money(total)}</div><div class="l">${title} за этот месяц</div></div><div class="mini-stat"><div class="v">${records.length}</div><div class="l">записей</div></div></div><section class="card"><div class="card-head"><span class="card-title">${sectionTitle}</span><span class="eyebrow">${records.length} ${records.length===1?'запись':'записей'}</span></div>${records.length?financeGroups(records,isIncome?'Доход':isSaving?'Накопления':'Расход',t=>{const r=t.repeat||{frequency:'none'},when=r.frequency==='weekly'?repeatDayLabel(r.weekday):r.frequency==='monthly'?'Каждое '+(r.monthDay||Number((t.date||'').slice(8,10)))+'-е число':formatDate(t.date);return `<div class="list-item transaction-row"><button type="button" class="transaction-open" data-transaction-details="${t.index}" aria-label="Подробнее: ${safe(t.title)}"><span class="tiny-icon ${isIncome?'green':isSaving?'purple':'orange'}">${icons.finance}</span><span class="item-copy"><span class="item-title">${safe(t.title)}</span><span class="item-meta">${safe(when)}${r.frequency!=='none'&&t.date?' · с '+safe(formatDate(t.date)):''}</span></span><span class="money-amount ${isPositive?'positive':'negative'}">${isPositive?'+':'−'}${money(t.amount)}</span></button><button class="icon-button" data-delete="transaction" data-index="${t.index}" aria-label="Удалить запись">×</button></div>`}):empty(isSaving?'Пока нет накоплений':isIncome?'Пока нет доходов':'Пока нет расходов',isSaving?'Добавь сумму, которую откладываешь, и выбери дату или повтор.':isIncome?'Добавь поступление и выбери, когда оно повторяется.':'Добавь трату и выбери, когда она повторяется.')}</section>`}
     function showTransactionDetails(index){const t=data.transactions[index];if(!t)return;const typeLabel=t.type==='income'?'Доход':t.type==='saving'?'Накопление':'Расход',r=t.repeat||{frequency:'none'},schedule=r.frequency==='weekly'?`${repeatDayLabel(r.weekday)}${t.date?' · начиная с '+formatDate(t.date):''}`:r.frequency==='monthly'?`Каждое ${r.monthDay||Number((t.date||'').slice(8,10))}-е число${t.date?' · начиная с '+formatDate(t.date):''}`:`Разово · ${formatDate(t.date)}`,category=t.category||(t.type==='income'?'Доход':t.type==='saving'?'Накопления':'Расход'),amountPrefix=t.type==='expense'?'−':'+';const dialog=$('#transactionDetailDialog');dialog.innerHTML=`<div style="padding:24px;min-width:min(420px,calc(100vw - 40px))"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div class="eyebrow">${typeLabel}</div><button class="icon-button" type="button" data-close-transaction-details aria-label="Закрыть">×</button></div><h2 style="font-size:22px;margin:14px 0 6px;overflow-wrap:anywhere">${safe(t.title)}</h2><div class="money-amount ${t.type==='expense'?'negative':'positive'}" style="font-size:20px;margin-bottom:20px">${amountPrefix}${money(t.amount)}</div><div style="display:grid;gap:12px;padding:16px;background:#f5f5f2;border-radius:12px"><div><div class="eyebrow">Дата и повтор</div><div style="margin-top:4px">${safe(schedule)}</div></div><div><div class="eyebrow">Категория</div><div style="margin-top:4px">${safe(category)}</div></div></div><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px"><button class="button small" type="button" data-edit-transaction="${index}">Редактировать</button></div></div>`;dialog.showModal()}
     function schedule(){
-      const today=todayISO(),all=data.events.map((e,index)=>({...e,index})),oneTime=all.filter(e=>!e.repeatDays),past=oneTime.filter(e=>String(e.date||today)<today).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||(a.time||'').localeCompare(b.time||'')),todayEvents=oneTime.filter(e=>(e.date||today)===today).sort((a,b)=>(a.time||'').localeCompare(b.time||'')),future=oneTime.filter(e=>String(e.date||today)>today).sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))||(a.time||'').localeCompare(b.time||'')),repeat=all.filter(e=>e.repeatDays).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
-      const eventRows=(items,showDate=false)=>`<div class="list">${items.map(e=>`<div class="list-item ${eventDone(e)?'done':''}"><input class="check" type="checkbox" data-event="${e.index}" ${eventDone(e)?'checked':''} ${eventTimePassed(e)?'disabled':''} aria-label="Отметить ${safe(e.title)}"><button type="button" class="item-copy event-open" data-event-details="${e.index}"><span class="item-title">${safe(e.title)}</span><span class="item-meta">${showDate?safe(formatDate(e.date))+' · ':''}${safe(eventRange(e))}</span></button><button class="icon-button" data-delete="event" data-index="${e.index}" aria-label="Удалить дело">×</button></div>`).join('')}</div>`;
+      const today=todayISO(),all=[...data.events.map((e,index)=>({...e,index})),...ruzLessons],oneTime=all.filter(e=>!e.repeatDays),past=oneTime.filter(e=>String(e.date||today)<today).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||(a.time||'').localeCompare(b.time||'')),todayEvents=oneTime.filter(e=>(e.date||today)===today).sort((a,b)=>(a.time||'').localeCompare(b.time||'')),future=oneTime.filter(e=>String(e.date||today)>today).sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))||(a.time||'').localeCompare(b.time||'')),repeat=all.filter(e=>e.repeatDays).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+      const ruzRow=(e,showDate)=>`<div class="list-item ${eventTimePassed(e)?'done':''}"><span class="tiny-icon blue" aria-hidden="true">${icons.schedule}</span><button type="button" class="item-copy event-open" data-ruz-details="${e.ruzIndex}"><span class="item-title">${safe(e.title)}</span><span class="item-meta">${showDate?safe(formatDate(e.date))+' · ':''}${safe(eventRange(e))} · СПбПУ${e.place?' · '+safe(e.place):''}</span></button></div>`;
+      const eventRows=(items,showDate=false)=>`<div class="list">${items.map(e=>e.fromRuz?ruzRow(e,showDate):`<div class="list-item ${eventDone(e)?'done':''}"><input class="check" type="checkbox" data-event="${e.index}" ${eventDone(e)?'checked':''} ${eventTimePassed(e)?'disabled':''} aria-label="Отметить ${safe(e.title)}"><button type="button" class="item-copy event-open" data-event-details="${e.index}"><span class="item-title">${safe(e.title)}</span><span class="item-meta">${showDate?safe(formatDate(e.date))+' · ':''}${safe(eventRange(e))}</span></button><button class="icon-button" data-delete="event" data-index="${e.index}" aria-label="Удалить дело">×</button></div>`).join('')}</div>`;
       const todayMarkup=`<section class="card schedule-day today-schedule"><div class="card-head"><div class="today-heading"><h2>${safe(formatDate(today))}</h2><span class="tag today-badge">СЕГОДНЯ</span></div><span class="eyebrow">${todayEvents.length} ${countLabel(todayEvents.length,'дело','дела','дел')}</span></div>${todayEvents.length?eventRows(todayEvents):empty('На сегодня разовых дел нет','Повторяющиеся напоминания собраны ниже.')}</section>`;
       const repeatMarkup=repeat.length?`<section class="card schedule-day"><div class="card-head"><h2>Повторяются</h2><span class="eyebrow">${repeat.length} ${countLabel(repeat.length,'напоминание','напоминания','напоминаний')}</span></div><div class="list">${repeat.map(e=>`<div class="list-item ${eventTimePassed(e)?'done':''}"><button type="button" class="alarm-toggle ${e.enabled===false?'off':''}" data-toggle-event="${e.index}" aria-pressed="${e.enabled!==false}" aria-label="${e.enabled===false?'Включить':'Выключить'} ${safe(e.title)}">${e.enabled===false?'○':'●'}</button><button type="button" class="item-copy event-open" data-event-details="${e.index}"><span class="item-title">${safe(e.title)}</span><span class="item-meta">${safe(eventRange(e))} · ${e.repeatDays.map(Number).sort((a,b)=>((a+6)%7)-((b+6)%7)).map(d=>['Вс','Пн','Вт','Ср','Чт','Пт','Сб'][d]).join(', ')}${e.startDate?' · с '+safe(formatDate(e.startDate)):''}</span></button><span class="tag">${e.enabled===false?'выкл.':'вкл.'}</span><button class="icon-button" data-delete="event" data-index="${e.index}" aria-label="Удалить напоминание">×</button></div>`).join('')}</div></section>`:'';
       const futureMarkup=[...new Set(future.map(e=>e.date||today))].map(date=>{const items=future.filter(e=>(e.date||today)===date);return `<section class="card schedule-day"><div class="card-head"><h2>${safe(formatDate(date))}</h2><span class="eyebrow">${items.length} ${countLabel(items.length,'дело','дела','дел')}</span></div>${eventRows(items)}</section>`}).join('');
       const pastMarkup=past.length?`<details class="card schedule-day past-events"><summary class="past-summary"><div><div class="eyebrow">история</div><h2>Прошедшие дни</h2></div><span class="tag">${past.length} ${countLabel(past.length,'дело','дела','дел')}</span></summary>${eventRows(past,true)}</details>`:'';
       return `<div class="entry-head"><div><div class="eyebrow">планируй разово или по повторам</div><h1>Календарь</h1><p class="page-sub">Смотри дела на сегодня, планируй следующие дни и открывай историю.</p></div><div class="calendar-actions"><button class="button ghost small" type="button" data-import-ics>Импорт</button><button class="button ghost small" type="button" data-export-ics>Экспорт</button><button class="button" data-action="event-form">+ Добавить дело</button><input id="icsFile" type="file" accept=".ics,text/calendar" hidden></div></div>${todayMarkup}${repeatMarkup}${futureMarkup}${pastMarkup}`;
     }
+    document.addEventListener('click',event=>{
+      const control=event.target.closest('[data-ruz-details]');
+      if(!control)return;
+      const lesson=ruzLessons[Number(control.dataset.ruzDetails)];
+      if(!lesson)return;
+      const dialog=$('#transactionDetailDialog');
+      const notes=[lesson.type,lesson.place,lesson.group].filter(value=>typeof value==='string'&&value).map(value=>`<p>${safe(value)}</p>`).join('');
+      dialog.innerHTML=`<div class="event-details"><div class="card-head"><span class="eyebrow">Расписание СПбПУ</span><button class="icon-button" type="button" data-close-transaction-details aria-label="Закрыть">×</button></div><h2>${safe(lesson.title)}</h2><p><strong>${safe(eventRange(lesson))} (МСК)</strong><br>${safe(formatDate(lesson.date))}</p>${notes}</div>`;
+      dialog.showModal();
+    });
     function dreams(){return `<div class="entry-head"><div><div class="eyebrow">мечты и желания</div><h1>Мечты</h1><p class="page-sub">Записывай то, чего хочется.</p></div><button class="button" data-action="dream-form">+ Записать мечту</button></div>${data.dreams.length?`<div class="grid section-grid">${data.dreams.map((d,i)=>`<section class="card dream-card personal-card">${personalOpen('dream',i,d.title)}<div class="dream-mark tiny-icon purple" aria-hidden="true">${icons.dreams}</div><div class="item-title">${safe(d.title)}</div><div class="item-meta">${safe(d.note||'У этой мечты ещё нет плана — и это нормально.')}</div><div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center"><span class="tag">${safe(d.when||'когда-нибудь')}</span><button class="icon-button" data-delete="dream" data-index="${i}" aria-label="Удалить мечту">×</button></div></section>`).join('')}</div>`:`<section class="card"><div class="dream-mark tiny-icon purple dream-mark-large" aria-hidden="true">${icons.dreams}</div><h2 style="font-size:20px;letter-spacing:-.8px;margin:0 0 7px">А если всё получится?</h2><div style="color:var(--muted);font-size:12px;line-height:1.6;max-width:400px">Сюда можно записать любое желание — поездку, навык, смелый проект или просто больше времени для себя.</div><button class="button" style="margin-top:20px" data-action="dream-form">Записать первую мечту</button></section>`}`}
     function goals(){return `<div class="entry-head"><div><div class="eyebrow">ясный ориентир</div><h1>Цели</h1><p class="page-sub">Запиши цель и отмечай выполненные шаги.</p></div><button class="button" data-action="goal-form">+ Новая цель</button></div>${data.goals.length?`<div class="grid section-grid">${data.goals.map((g,i)=>`<section class="card personal-card">${personalOpen('goal',i,g.title)}<div class="card-head"><span class="tiny-icon green">${icons.goals}</span><button class="icon-button" data-delete="goal" data-index="${i}" aria-label="Удалить цель">×</button></div><div style="font-weight:700;margin-top:17px">${safe(g.title)}</div><div class="item-meta" style="margin-top:6px">${!g.target?'Добавь шаги':g.target-g.progress>0?`Ещё ${g.target-g.progress} ${g.target-g.progress===1?'шаг':'шага'} до результата`:'Цель достигнута — классно!'}</div><div class="goal-progress" style="height:7px;margin-top:14px"><span style="width:${Math.min(100,Math.round(g.progress/Math.max(1,g.target)*100))}%"></span></div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px"><span class="item-meta">${g.progress} из ${g.target} шагов</span>${goalChecklist(g)?'':`<div class="goal-controls"><button class="icon-button" data-goal="${i}" data-delta="-1" aria-label="Уменьшить прогресс">−</button><button class="icon-button" data-goal="${i}" data-delta="1" aria-label="Добавить шаг">+</button></div>`}</div><button class="button ghost small" style="margin-top:14px" data-ai-goal="${i}">Разобрать с ChatGPT</button></section>`).join('')}</div>`:`<section class="card"><div class="eyebrow">одна цель за раз</div><h2 style="font-size:21px;letter-spacing:-1px;margin:13px 0 7px">Тебе не нужен идеальный план.</h2><div style="color:var(--muted);font-size:12px;line-height:1.6;max-width:420px">Выбери то, что важно сейчас. Определи несколько шагов — и отмечай каждый по пути.</div><button class="button" style="margin-top:20px" data-action="goal-form">Добавить цель</button></section>`}`}
     async function askChatGPTAboutGoal(index){const g=data.goals[index];if(!g)return;const promptText=`Помоги мне продвинуться к цели.
@@ -544,7 +574,7 @@
     const navFn=navigate;navigate=(p)=>{page=p;history.replaceState(null,'','#'+p);renderSafe();window.scrollTo({top:0,behavior:'smooth'})};
     bind();
     renderSafe();
-    const calendarClock=()=>todayISO()+':'+data.events.map(event=>Number(eventTimePassed(event))).join('')+':'+[...data.deadlines,...botDeadlines()].map(deadline=>deadlineStatus(deadline)).join('|');
+    const calendarClock=()=>todayISO()+':'+[...data.events,...ruzLessons].map(event=>Number(eventTimePassed(event))).join('')+':'+[...data.deadlines,...botDeadlines()].map(deadline=>deadlineStatus(deadline)).join('|');
     let lastCalendarClock=calendarClock();
     function refreshCalendarClock(){
       const current=calendarClock();
