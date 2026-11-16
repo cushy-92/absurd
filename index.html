@@ -47,8 +47,6 @@
     .deadline-heading{display:flex;align-items:center;gap:10px}
     .deadline-heading .tiny-icon{flex:none}
     .deadline-heading h1{margin-block:0}
-    .button.deadline-add{background:#b74714;color:#fff}
-    .button.deadline-add:hover{background:#953811}
     .deadline-list{background:#fff8f2;border-color:#f1d6c2}
     .deadline-list .list-item{background:#fff;border-color:#f1e3d8}
     .deadline-list .deadline-today{background:#ffe0c5;color:#86340e}
@@ -320,7 +318,7 @@
     function deadlines(){
       const rows=data.deadlines.map((deadline,index)=>({...deadline,index}))
         .sort((a,b)=>Number(Boolean(a.done))-Number(Boolean(b.done))||(a.date+'T'+(a.time||'23:59')).localeCompare(b.date+'T'+(b.time||'23:59')));
-      return `<div class="entry-head"><div class="deadline-heading"><span class="tiny-icon orange" aria-hidden="true">${icons.deadlines}</span><h1>Дедлайны</h1></div><div class="calendar-actions"><button class="button ghost small" type="button" data-import-deadlines>Импорт</button><button class="button deadline-add" type="button" data-action="deadline-form">+ Добавить дедлайн</button><input type="file" id="deadlineIcsFile" accept=".ics,text/calendar" hidden></div></div><section class="card deadline-list">${rows.length?`<div class="list">${rows.map(deadline=>{
+      return `<div class="entry-head"><div class="deadline-heading"><span class="tiny-icon orange" aria-hidden="true">${icons.deadlines}</span><h1>Дедлайны</h1></div><div class="calendar-actions"><button class="button ghost small" type="button" data-import-deadlines>Импорт</button><button class="button" type="button" data-action="deadline-form">+ Добавить дедлайн</button><input type="file" id="deadlineIcsFile" accept=".ics,text/calendar" hidden></div></div><section class="card deadline-list">${rows.length?`<div class="list">${rows.map(deadline=>{
         const status=deadlineStatus(deadline);
         return `<div class="list-item ${deadline.done?'done':''}"><input class="check" type="checkbox" data-deadline-check="${deadline.index}" ${deadline.done?'checked':''} aria-label="Отметить: ${safe(deadline.title)}"><button class="item-copy event-open" type="button" data-edit-deadline="${deadline.index}"><span class="item-title">${safe(deadline.title)}</span><span class="item-meta">${safe(formatDate(deadline.date))}${deadline.time?' · '+safe(deadline.time):''}</span></button>${status?`<span class="tag ${status==='Просрочено'?'deadline-late':status==='Сегодня'?'deadline-today':''}">${status}</span>`:''}<button class="icon-button" type="button" data-delete="deadline" data-index="${deadline.index}" aria-label="Удалить дедлайн">×</button></div>`;
       }).join('')}</div>`:empty('Дедлайнов пока нет','Добавь задачу и укажи, к какому дню её нужно закончить.')}</section>`;
