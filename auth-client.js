@@ -67,6 +67,33 @@ const firebaseConfig = {
       if (!user?.emailVerified) throw new Error('Нужно войти и подтвердить почту.');
       return firebase.firestore().collection('absurdState').doc(user.uid);
     };
+    function polytechRef(collection) {
+      const user = auth.currentUser;
+      if (!user?.emailVerified) throw new Error('Подтверди почту в Absurd.');
+      return firebase.firestore().collection(collection).doc(user.uid);
+    }
+    window.absurdPolytech = {
+      ownerUid: () => polytechRef('polytechLinks').id,
+      async link(botUid) {
+        await polytechRef('polytechLinks').set({ botUid });
+      },
+      async unlink() {
+        await polytechRef('polytechLinks').delete();
+      },
+      watchLinks(onChange, onError) {
+        return polytechRef('polytechLinks').onSnapshot(doc => onChange(doc.data()?.botUid || ''), onError);
+      },
+      watchDeadlines(botUid, onChange, onError) {
+        return polytechRef('polytechDeadlines').onSnapshot(doc => {
+          const value = doc.data();
+          if (value?.botUid !== botUid) { onChange([]); return; }
+          try {
+            const rows = JSON.parse(value.snapshot);
+            onChange(Array.isArray(rows) ? rows : []);
+          } catch { onError(); }
+        }, onError);
+      },
+    };
     const cacheKey = () => {
       const user = auth.currentUser;
       if (!user?.emailVerified) throw new Error('Нужно войти и подтвердить почту.');
@@ -81,9 +108,12 @@ const firebaseConfig = {
     window.absurdState = {
       readCached: readCache,
       async read() {
+        const key = cacheKey();
         const record = await stateRef().get({ source: 'server' });
         const snapshot = record.exists ? record.data().snapshot : '';
-        if (snapshot) localStorage.setItem(cacheKey(), snapshot);
+        if (snapshot) {
+          try { localStorage.setItem(key, snapshot); } catch {}
+        }
         return { exists: record.exists, state: snapshot ? JSON.parse(snapshot) : {}, cached: false };
       },
       async write(snapshot) {
@@ -103,12 +133,20 @@ const firebaseConfig = {
     const logoutButton = document.getElementById('logoutButton');
     if (logoutButton) logoutButton.addEventListener('click', () => auth.signOut());
 
+    let activeUid = '';
     auth.onAuthStateChanged(async user => {
+      if (activeUid && (user?.uid !== activeUid || !user.emailVerified)) {
+        screen.hidden = false;
+        announceAuthState(false);
+        location.reload();
+        return;
+      }
       unverifiedUser = user && !user.emailVerified ? user : null;
       resend.hidden = !unverifiedUser;
       checkEmail.hidden = !unverifiedUser;
       if (user && user.emailVerified) {
         try {
+          activeUid = user.uid;
           document.getElementById('accountLabel').textContent = user.email || 'Мой аккаунт';
           document.getElementById('accountEmail').textContent = user.email || '';
           screen.hidden = true;
