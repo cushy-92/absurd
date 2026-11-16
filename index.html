@@ -337,30 +337,53 @@
       return `<section class="card schedule-day" style="max-width:620px"><h2>PolytechBot</h2>
         <p class="page-sub">UID аккаунта для GitHub Actions: <code style="overflow-wrap:anywhere">${safe(window.absurdPolytech.ownerUid())}</code></p>
         ${polytechStatus?`<p class="page-sub">${safe(polytechStatus)}</p>`:''}
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
-        <button type="button" class="button ghost small" data-polytech-link>${polytechBotUid?'Заменить бота':'Подключить бота'}</button>
-        ${polytechBotUid?'<button type="button" class="button ghost small" data-polytech-unlink>Отключить</button>':''}
-        </div></section>`;
+        <details style="margin-top:14px">
+          <summary class="text-link" style="cursor:pointer">${polytechBotUid?'Заменить бота':'Подключить бота'}</summary>
+          <form id="polytechLinkForm" style="margin-top:10px">
+            <label class="field">UID бота из PowerShell
+              <input name="botUid" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="128" required>
+            </label>
+            <button type="submit" class="button small" style="margin-top:10px">Сохранить привязку</button>
+            <p class="page-sub" data-polytech-feedback role="status" hidden></p>
+          </form>
+        </details>
+        ${polytechBotUid?'<button type="button" class="button ghost small" data-polytech-unlink style="margin-top:10px">Отключить</button>':''}
+        </section>`;
     }
-    document.addEventListener('click',async event=>{
-      const link=event.target.closest('[data-polytech-link]');
-      const unlink=event.target.closest('[data-polytech-unlink]');
-      if(!link&&!unlink)return;
-      try{
-        if(unlink){await window.absurdPolytech.unlink();return;}
-        const botUid=prompt('Вставь UID бота из команды register.','')?.trim();
-        if(!botUid)return;
-        if(!/^[A-Za-z0-9_-]{20,128}$/.test(botUid)){alert('Проверь UID бота.');return;}
-        await window.absurdPolytech.link(botUid);
-      }catch(error){
-        if(error.code==='permission-denied'){
-          alert('Firestore отказал в сохранении привязки (permission-denied). Проверь, что правила polytechLinks опубликованы в базе (default) проекта absurd-146c4.');
-        }else if(error.code==='unavailable'||error.code==='auth/network-request-failed'){
-          alert('Не удалось связаться с Firebase. Проверь подключение и повтори.');
-        }else{
-          alert('Не удалось изменить привязку.'+(error.code?' Код Firebase: '+error.code:''));
-        }
+    document.addEventListener('submit',async event=>{
+      const form=event.target;
+      if(form.id!=='polytechLinkForm')return;
+      event.preventDefault();
+      const botUid=form.elements.botUid.value.trim();
+      const feedback=form.querySelector('[data-polytech-feedback]');
+      const button=form.querySelector('button');
+      feedback.hidden=false;
+      if(!/^[A-Za-z0-9_-]{20,128}$/.test(botUid)){
+        feedback.textContent='Вставь только значение после «UID бота для Absurd» из PowerShell.';
+        return;
       }
+      button.disabled=true;
+      feedback.textContent='Сохраняю привязку…';
+      try{
+        await window.absurdPolytech.link(botUid);
+        feedback.textContent='Бот подключён.';
+      }catch(error){
+        const code=error?.code;
+        if(code==='permission-denied'){
+          feedback.textContent='Firestore отказал в сохранении (permission-denied). Проверь, что правила polytechLinks опубликованы в базе (default) проекта absurd-146c4.';
+        }else if(code==='unavailable'||code==='auth/network-request-failed'){
+          feedback.textContent='Не удалось связаться с Firebase. Проверь подключение и повтори.';
+        }else{
+          feedback.textContent='Не удалось сохранить привязку. Ошибка: '+(code||error?.name||'неизвестная')+'.';
+        }
+      }finally{
+        button.disabled=false;
+      }
+    });
+    document.addEventListener('click',async event=>{
+      if(!event.target.closest('[data-polytech-unlink]'))return;
+      try{await window.absurdPolytech.unlink();}
+      catch{alert('Не удалось отключить бота.');}
     });
     document.addEventListener('change',event=>{
       const key=event.target.dataset?.polytechDone;
