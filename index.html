@@ -150,7 +150,7 @@
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-firestore-compat.js"></script>
-  <script src="./auth-client.js?v=polytech-1"></script>
+  <script src="./auth-client.js?v=polytech-2"></script>
   <script>
   (()=>{
     const KEY='absurd-routine-v1';
@@ -352,7 +352,15 @@
         if(!botUid)return;
         if(!/^[A-Za-z0-9_-]{20,128}$/.test(botUid)){alert('Проверь UID бота.');return;}
         await window.absurdPolytech.link(botUid);
-      }catch{alert('Не удалось изменить привязку. Проверь подключение и правила Firestore.');}
+      }catch(error){
+        if(error.code==='permission-denied'){
+          alert('Firestore отказал в сохранении привязки (permission-denied). Проверь, что правила polytechLinks опубликованы в базе (default) проекта absurd-146c4.');
+        }else if(error.code==='unavailable'||error.code==='auth/network-request-failed'){
+          alert('Не удалось связаться с Firebase. Проверь подключение и повтори.');
+        }else{
+          alert('Не удалось изменить привязку.'+(error.code?' Код Firebase: '+error.code:''));
+        }
+      }
     });
     document.addEventListener('change',event=>{
       const key=event.target.dataset?.polytechDone;

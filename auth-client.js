@@ -75,7 +75,16 @@ const firebaseConfig = {
     window.absurdPolytech = {
       ownerUid: () => polytechRef('polytechLinks').id,
       async link(botUid) {
-        await polytechRef('polytechLinks').set({ botUid });
+        const user = auth.currentUser;
+        const ref = polytechRef('polytechLinks');
+        try {
+          await ref.set({ botUid });
+        } catch (error) {
+          if (error.code !== 'permission-denied' || auth.currentUser !== user) throw error;
+          await user.getIdToken(true);
+          if (auth.currentUser !== user) throw error;
+          await ref.set({ botUid });
+        }
       },
       async unlink() {
         await polytechRef('polytechLinks').delete();
