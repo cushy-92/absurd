@@ -39,6 +39,15 @@
     .optional-fields[open] summary:after{content:'−'}
     .optional-fields .field{margin-top:12px}
     .schedule-day h2{font-size:14px;margin:0}
+    .schedule-day .list{grid-template-columns:minmax(0,1fr)}
+    .schedule-day .list-item{min-width:0}
+    .schedule-day .item-title,.schedule-day .item-meta{white-space:normal;overflow-wrap:anywhere}
+    .schedule-day .icon-button,.schedule-day .tag{flex-shrink:0}
+    @media(max-width:500px){
+      .schedule-day{padding-inline:14px}
+      .schedule-day .list-item{gap:8px}
+      .today-schedule .card-head{flex-wrap:wrap;gap:8px}
+    }
     @media(max-width:500px){.segment{width:100%}.segment-button{flex:1;padding-inline:8px}}
     @media(max-width:650px){.calendar-actions{justify-content:flex-start}.calendar-actions .button{font-size:10px;padding:9px 10px}}
     #authScreen{position:fixed;inset:0;z-index:40;background:var(--paper);display:grid;place-items:center;padding:20px}
