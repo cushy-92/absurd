@@ -67,13 +67,28 @@ const firebaseConfig = {
       if (!user?.emailVerified) throw new Error('Нужно войти и подтвердить почту.');
       return firebase.firestore().collection('absurdState').doc(user.uid);
     };
+    const cacheKey = () => {
+      const user = auth.currentUser;
+      if (!user?.emailVerified) throw new Error('Нужно войти и подтвердить почту.');
+      return `absurd-cloud-cache:${user.uid}`;
+    };
+    const readCache = () => {
+      try {
+        const snapshot = localStorage.getItem(cacheKey());
+        return snapshot ? { exists: true, state: JSON.parse(snapshot), cached: true } : { exists: false, state: {}, cached: true };
+      } catch { return { exists: false, state: {}, cached: true }; }
+    };
     window.absurdState = {
+      readCached: readCache,
       async read() {
         const record = await stateRef().get({ source: 'server' });
-        return { exists: record.exists, state: record.exists ? JSON.parse(record.data().snapshot) : {} };
+        const snapshot = record.exists ? record.data().snapshot : '';
+        if (snapshot) localStorage.setItem(cacheKey(), snapshot);
+        return { exists: record.exists, state: snapshot ? JSON.parse(snapshot) : {}, cached: false };
       },
       async write(snapshot) {
         if (new TextEncoder().encode(snapshot).length > 200_000) throw new Error('Слишком большой объём данных.');
+        localStorage.setItem(cacheKey(), snapshot);
         return stateRef().set({ snapshot });
       },
     };
@@ -94,7 +109,6 @@ const firebaseConfig = {
       checkEmail.hidden = !unverifiedUser;
       if (user && user.emailVerified) {
         try {
-          await user.getIdToken();
           document.getElementById('accountLabel').textContent = user.email || 'Мой аккаунт';
           document.getElementById('accountEmail').textContent = user.email || '';
           screen.hidden = true;
