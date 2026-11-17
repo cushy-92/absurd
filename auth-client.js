@@ -93,7 +93,7 @@
     return [rows.filter(row => row?.key !== '$ruz-schedule'), weeks.flatMap(week => Array.isArray(week) ? week : [])];
   };
   const centralUid = '9vWAFebDZmQIlMxnR3jcgVRytaU2';
-  if (!navigator.onLine) {
+  if (!navigator.onLine || document.documentElement.hasAttribute('data-offline-shell')) {
     const account = cacheRead(offlineIdentity);
     const key = typeof account?.uid === 'string' && 'absurd-cloud-cache:' + account.uid;
     const state = key && cacheRead(key);
@@ -130,6 +130,7 @@
     screen.hidden = false;
     showAuthPanel();
     form.hidden = true;
+    title.textContent = 'Нет подключения';
     document.getElementById('authTabs').hidden = true;
     panel.querySelector('[data-google-signin]').hidden = true;
     say('Нет подключения к интернету. Открой Absurd с интернетом и дождись загрузки данных на этом устройстве.', true);
