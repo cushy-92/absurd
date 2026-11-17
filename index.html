@@ -145,6 +145,8 @@
     .auth-fields input{width:100%;height:43px;border:1px solid var(--line);border-radius:10px;background:#fafaf8;padding:10px 12px;outline:none}
     .auth-fields input:focus{border-color:#8e927f}
     .auth-submit{width:100%;margin-top:13px;height:43px}
+    .google-auth{width:100%;height:43px;margin:12px 0 10px;background:#fff;border:1px solid var(--line);color:var(--ink)}
+    .google-auth:hover{background:#f7f7f3}
     .auth-message{min-height:36px;margin:12px 0 0;color:#666961;font-size:11px;line-height:1.5}
     .auth-message.error{color:#b34838}
     .auth-link{border:0;background:none;padding:6px 0;color:#5f6552;text-decoration:underline;font-size:11px;cursor:pointer}
@@ -161,6 +163,7 @@
         <h1>Немного порядка.<br>Больше воздуха.</h1>
         <p>Дела, дедлайны, деньги и цели в одном личном пространстве.</p>
         <div class="landing-actions">
+          <button type="button" class="button" data-google-signin>Войти через Google</button>
           <button type="button" class="button" data-open-auth="signup">Зарегистрироваться</button>
           <button type="button" class="button ghost" data-open-auth="login">Войти</button>
         </div>
@@ -174,6 +177,7 @@
     <div class="auth-card" id="authPanel" hidden>
       <div class="auth-brand"><span class="auth-mark">a</span><span>absurd</span></div>
       <h1 id="authTitle">Вход</h1>
+      <button type="button" class="button google-auth" data-google-signin>Продолжить через Google</button>
       <div class="auth-tabs" id="authTabs"><button type="button" data-auth-mode="login" class="active">Войти</button><button type="button" data-auth-mode="signup">Регистрация</button></div>
       <form id="authForm">
         <div class="auth-fields"><input id="authEmail" type="email" autocomplete="email" aria-label="Email" placeholder="Email" required><input id="authPassword" type="password" autocomplete="current-password" aria-label="Пароль" placeholder="Пароль (не менее 6 символов)" minlength="6" required></div>
@@ -215,7 +219,7 @@
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-firestore-compat.js"></script>
-  <script src="./auth-client.js?v=bot-setup-1"></script>
+  <script src="./auth-client.js?v=central-1"></script>
   <script>
   (()=>{
     const KEY='absurd-routine-v1';
@@ -368,7 +372,6 @@
     let ruzLessons=[];
     let polytechBotUid='';
     let polytechStatus='';
-    let polytechSetup=null;
     let stopPolytechLinks=()=>{};
     let stopPolytechDeadlines=()=>{};
     function safeMoodleUrl(url){
@@ -425,50 +428,53 @@
     }
     function polytechPanel(){
       if(!window.absurdPolytech||!window.absurdAuthenticated)return '';
-      const secret=(name,value)=>`<div style="margin-top:10px"><div class="eyebrow" style="margin-bottom:5px">${safe(name)}</div><div style="display:flex;gap:8px;align-items:stretch"><input value="${safe(value)}" readonly aria-label="${safe(name)}" style="min-width:0;font-family:var(--mono);font-size:11px"><button type="button" class="button ghost small" data-copy-polytech="${safe(value)}">Копировать</button></div></div>`;
-      const setup=polytechSetup?`<div style="margin-top:16px;padding:16px;border:1px solid #f0d7aa;border-radius:16px;background:#fff8eb">
-        <div style="font-weight:700">Ключ создан и бот уже привязан</div>
-        <p class="page-sub" style="margin:6px 0 0">Скопируй значения сейчас: секретный ключ после обновления страницы больше не покажется.</p>
-        ${secret('ABSURD_OWNER_UID',polytechSetup.ownerUid)}
-        ${secret('ABSURD_BOT_REFRESH_TOKEN',polytechSetup.refreshToken)}
-      </div>`:'';
-      return `<section class="card schedule-day" style="max-width:620px"><h2>PolytechBot</h2>
-        <p class="page-sub">Переносит личные дедлайны из СДО и расписание группы. Данные каждого аккаунта изолированы.</p>
+      const centralConnected=polytechBotUid===window.absurdPolytech.centralUid;
+      const central=centralConnected?`<div style="margin-top:16px;padding:16px;border:1px solid #dce8c7;border-radius:16px;background:#f7faef">
+          <div style="font-weight:700">СПбПУ подключён</div>
+          <p class="page-sub" style="margin:6px 0 12px">Расписание и дедлайны будут обновляться автоматически.</p>
+          <button type="button" class="button ghost small" data-polytech-central-unlink>Отключить СПбПУ</button>
+        </div>`:`<form id="polytechCentralForm" method="post" style="display:grid;gap:12px;margin-top:16px">
+          <label>Логин СДО<input name="username" autocomplete="username" required maxlength="200" placeholder="Логин от СДО Политеха"></label>
+          <label>Пароль СДО<input name="password" type="password" autocomplete="current-password" required maxlength="500" placeholder="Пароль от СДО Политеха"></label>
+          <label>Номер группы<input name="groupName" required maxlength="80" placeholder="Например, 4731204/60002"></label>
+          <button type="submit" class="button">Подключить ПолитехБота</button>
+        </form>`;
+      return `<section class="card schedule-day" style="max-width:620px"><h2>СПбПУ</h2>
+        <p class="page-sub">Один раз введи данные — Absurd будет переносить твои дедлайны из СДО и расписание группы.</p>
+        <p class="page-sub" style="margin-top:8px">Логин и пароль шифруются в браузере до отправки. Прочитать их может только закрытый сервис синхронизации.</p>
         ${polytechStatus?`<p class="page-sub" style="margin-top:8px">${safe(polytechStatus)}</p>`:''}
-        ${setup}
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
-          <button type="button" class="button small" data-polytech-create>${polytechBotUid?'Создать новый ключ':'Подключить бота'}</button>
-          <a class="button ghost small" href="https://github.com/new?template_name=absurd-polytech-bot&amp;template_owner=cushy-92&amp;visibility=private" target="_blank" rel="noopener">Создать приватного бота</a>
-          ${polytechBotUid?'<button type="button" class="button ghost small" data-polytech-unlink>Отключить</button>':''}
-        </div>
-        <details style="margin-top:14px"><summary class="text-link" style="cursor:pointer">Что нужно добавить в GitHub</summary>
-          <ol class="page-sub" style="padding-left:20px;line-height:1.7">
-            <li><code>SDO_USERNAME</code> — логин СДО.</li><li><code>SDO_PASSWORD</code> — пароль СДО.</li>
-            <li><code>ABSURD_OWNER_UID</code> и <code>ABSURD_BOT_REFRESH_TOKEN</code> — значения, которые выдаст кнопка подключения.</li>
-            <li>В Variables добавь ссылку на расписание своей группы как <code>RUZ_GROUP_URL</code>.</li>
-          </ol>
-        </details>
+        ${central}
         <p class="page-sub" data-polytech-feedback role="status" hidden></p>
         </section>`;
     }
     document.addEventListener('click',async event=>{
-      const copy=event.target.closest('[data-copy-polytech]');
-      if(copy){
-        try{await navigator.clipboard.writeText(copy.dataset.copyPolytech);copy.textContent='Скопировано';setTimeout(()=>copy.textContent='Копировать',1200)}
-        catch{alert('Не удалось скопировать. Выдели значение вручную.');}
-        return;
-      }
-      const create=event.target.closest('[data-polytech-create]');
-      if(create){
-        const feedback=$('[data-polytech-feedback]');
-        create.disabled=true;feedback.hidden=false;feedback.textContent='Создаю защищённый ключ…';
-        try{polytechSetup=await window.absurdPolytech.createBotKey();polytechStatus='Бот привязан. Осталось добавить четыре значения в приватный репозиторий.';renderSafe();}
-        catch(error){feedback.textContent='Не удалось создать ключ. '+(error?.code||error?.message||'Попробуй ещё раз.');create.disabled=false;}
+      const centralUnlink=event.target.closest('[data-polytech-central-unlink]');
+      if(centralUnlink){
+        if(!confirm('Отключить СПбПУ и удалить сохранённые данные синхронизации?'))return;
+        centralUnlink.disabled=true;
+        try{await window.absurdPolytech.disconnectCentral();polytechStatus='';}
+        catch{alert('Не удалось отключить СПбПУ. Попробуй ещё раз.');centralUnlink.disabled=false;}
         return;
       }
       if(!event.target.closest('[data-polytech-unlink]'))return;
-      try{await window.absurdPolytech.unlink();polytechSetup=null;}
+      try{await window.absurdPolytech.unlink();}
       catch{alert('Не удалось отключить бота.');}
+    });
+    document.addEventListener('submit',async event=>{
+      if(event.target.id!=='polytechCentralForm')return;
+      event.preventDefault();
+      const form=event.target,button=form.querySelector('[type="submit"]'),feedback=$('[data-polytech-feedback]');
+      button.disabled=true;feedback.hidden=false;feedback.textContent='Шифрую данные и подключаю СПбПУ…';
+      try{
+        const values=new FormData(form);
+        await window.absurdPolytech.connectCentral({username:values.get('username'),password:values.get('password'),groupName:values.get('groupName')});
+        form.elements.password.value='';
+        polytechStatus='СПбПУ подключён. Первая синхронизация появится после ближайшей проверки.';
+        renderSafe();
+      }catch(error){
+        feedback.textContent=error?.message||'Не удалось подключить СПбПУ.';
+        button.disabled=false;
+      }
     });
     document.addEventListener('change',event=>{
       const key=event.target.dataset?.polytechDone;
