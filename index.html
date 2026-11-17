@@ -219,7 +219,7 @@
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-firestore-compat.js"></script>
-  <script src="./auth-client.js?v=offline-1"></script>
+  <script src="./auth-client.js?v=offline-2"></script>
   <script>
   (()=>{
     const KEY='absurd-routine-v1';
@@ -739,7 +739,7 @@
     bind();
     renderSafe();
     updateOfflineNotice();
-    if('serviceWorker' in navigator) navigator.serviceWorker.register('./offline-worker.js').catch(()=>{});
+    if('serviceWorker' in navigator&&navigator.onLine) navigator.serviceWorker.register('./offline-worker.js').catch(()=>{});
     const calendarClock=()=>todayISO()+':'+[...data.events,...ruzLessons].map(event=>Number(eventTimePassed(event))).join('')+':'+[...data.deadlines,...botDeadlines()].map(deadline=>deadlineStatus(deadline)).join('|');
     let lastCalendarClock=calendarClock();
     function refreshCalendarClock(){
@@ -777,6 +777,7 @@
     window.addEventListener('offline',updateOfflineNotice);
     window.addEventListener('online',()=>{
       updateOfflineNotice();
+      if(window.absurdOfflineSession)return;
       if(!window.absurdAuthenticated)return;
       if(!cloudReady){loadCloudState();return}
       const revision=localRevision;
@@ -790,6 +791,7 @@
     });
     window.addEventListener('absurd:auth-checked',()=>{if(!window.absurdAuthenticated)document.getElementById('cloudLoading')?.remove()});if(window.absurdAuthChecked&&!window.absurdAuthenticated)document.getElementById('cloudLoading')?.remove();setTimeout(()=>{if(!window.absurdAuthChecked&&!window.absurdAuthenticated){const screen=document.getElementById('authScreen');if(screen)screen.hidden=false;const message=document.getElementById('authMessage');if(message)message.textContent='Не удалось проверить вход. Проверь подключение и попробуй войти ещё раз.';document.getElementById('cloudLoading')?.remove()}},8000);window.addEventListener('absurd:auth-ready',loadCloudState);if(window.absurdAuthenticated)loadCloudState();
     window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(labels[h])navigate(h)});
+    if(window.absurdOfflineSession)startPolytech();
   })();
   </script>
 </body>
