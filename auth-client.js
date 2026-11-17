@@ -374,16 +374,65 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
         }
       },
     };
+    const pushKey = Uint8Array.from(atob('BDQkLNhA_8qcUC5f74EeaRUpW6CQNdlXuDk16oMcKW1LWFMaB8wpmdiuZZGAGpwlP7P6rQ5hbvtkcf8GCnvjv0Q'.replace(/-/g, '+').replace(/_/g, '/') + '='), value => value.charCodeAt(0));
+    function pushRegistration() {
+      return navigator.serviceWorker.getRegistration();
+    }
+    async function pushRef(user, subscription) {
+      const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(subscription.endpoint));
+      const id = Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('');
+      return firebase.firestore().collection('absurdPush').doc(user.uid).collection('devices').doc(id);
+    }
+    async function disablePush() {
+      const user = auth.currentUser;
+      if (!navigator.serviceWorker || !window.PushManager) return;
+      const registration = await pushRegistration();
+      const subscription = await registration?.pushManager.getSubscription();
+      if (!subscription) return;
+      await subscription.unsubscribe();
+      if (user?.emailVerified && navigator.onLine) await (await pushRef(user, subscription)).delete();
+    }
+    window.absurdPush = {
+      async status() {
+        if (!navigator.serviceWorker || !window.PushManager || !window.Notification) return 'unsupported';
+        if (Notification.permission === 'denied') return 'denied';
+        const registration = await pushRegistration();
+        if (!registration?.active) return 'loading';
+        const subscription = await registration.pushManager.getSubscription();
+        if (!subscription || !auth.currentUser?.emailVerified) return 'off';
+        const record = await (await pushRef(auth.currentUser, subscription)).get({ source: 'server' });
+        return record.exists ? 'on' : 'off';
+      },
+      async enable() {
+        const user = auth.currentUser;
+        if (!user?.emailVerified || !navigator.onLine) throw new Error('Для подключения войди в аккаунт с интернетом.');
+        if (await Notification.requestPermission() !== 'granted') throw new Error('Разреши уведомления в настройках устройства.');
+        const registration = await pushRegistration();
+        if (!registration?.active) throw new Error('Дождись загрузки Absurd и попробуй снова.');
+        let subscription = await registration.pushManager.getSubscription();
+        subscription ||= await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: pushKey });
+        if (auth.currentUser !== user) throw new Error('Аккаунт изменился. Повтори подключение.');
+        const ref = await pushRef(user, subscription);
+        const current = await ref.get({ source: 'server' });
+        const encoded = JSON.stringify(subscription);
+        if (current.data()?.subscription !== encoded) await ref.set({ subscription: encoded });
+      },
+      disable: disablePush,
+    };
+    const signOut = async () => {
+      try { await disablePush(); } catch {}
+      return auth.signOut();
+    };
     window.absurdAuth = {
       headers: async () => {
         const user = auth.currentUser;
         if (!user || !user.emailVerified) throw new Error('Нужно войти и подтвердить email.');
         return { Authorization: `Bearer ${await user.getIdToken()}` };
       },
-      signOut: () => auth.signOut(),
+      signOut,
     };
     const logoutButton = document.getElementById('logoutButton');
-    if (logoutButton) logoutButton.addEventListener('click', () => auth.signOut());
+    if (logoutButton) logoutButton.addEventListener('click', signOut);
 
     let activeUid = '';
     auth.onAuthStateChanged(async user => {
