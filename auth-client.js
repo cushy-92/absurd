@@ -100,6 +100,32 @@ const firebaseConfig = {
     }
     window.absurdPolytech = {
       ownerUid: () => polytechRef('polytechLinks').id,
+      async createBotKey() {
+        const user = auth.currentUser;
+        if (!user?.emailVerified) throw new Error('Подтверди почту в Absurd.');
+        const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${encodeURIComponent(config.apiKey)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ returnSecureToken: true }),
+        });
+        const bot = await response.json().catch(() => ({}));
+        if (!response.ok || !bot.localId || !bot.refreshToken || !bot.idToken) {
+          const error = new Error('Firebase не создал ключ бота.');
+          error.code = bot?.error?.message || `firebase-http-${response.status}`;
+          throw error;
+        }
+        try {
+          await this.link(bot.localId);
+        } catch (error) {
+          fetch(`https://identitytoolkit.googleapis.com/v1/accounts:delete?key=${encodeURIComponent(config.apiKey)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken: bot.idToken }),
+          }).catch(() => {});
+          throw error;
+        }
+        return { ownerUid: user.uid, botUid: bot.localId, refreshToken: bot.refreshToken };
+      },
       async link(botUid) {
         const user = auth.currentUser;
         const ref = polytechRef('polytechLinks');
