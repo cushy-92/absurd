@@ -207,18 +207,30 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
         await polytechRef('polytechLinks').delete();
       },
       watchLinks(onChange, onError) {
-        return polytechRef('polytechLinks').onSnapshot(doc => onChange(doc.data()?.botUid || ''), onError);
+        return polytechRef('polytechLinks').onSnapshot({ includeMetadataChanges: true }, doc => {
+          if (!doc.exists && doc.metadata.fromCache && !doc.metadata.hasPendingWrites) return;
+          onChange(doc.data()?.botUid || '');
+        }, onError);
       },
       watchSnapshot(botUid, onChange, onError) {
-        return polytechRef('polytechDeadlines').onSnapshot(doc => {
+        let lastSnapshot;
+        return polytechRef('polytechDeadlines').onSnapshot({ includeMetadataChanges: true }, doc => {
           const value = doc.data();
-          if (value?.botUid !== botUid) { onChange([], []); return; }
+          if (value?.botUid !== botUid) {
+            if (!doc.metadata.fromCache && lastSnapshot !== null) {
+              lastSnapshot = null;
+              onChange([], [], false);
+            }
+            return;
+          }
+          if (typeof value.snapshot === 'string' && value.snapshot === lastSnapshot) return;
           try {
             const rows = JSON.parse(value.snapshot);
             if (!Array.isArray(rows)) throw new Error('Unexpected PolytechBot snapshot');
             const schedule = rows.find(row => row?.key === '$ruz-schedule' && row.kind === 'ruz-schedule');
             const weeks = Object.values(schedule?.weeks || {});
-            onChange(rows.filter(row => row?.key !== '$ruz-schedule'), weeks.flatMap(week => Array.isArray(week) ? week : []));
+            lastSnapshot = value.snapshot;
+            onChange(rows.filter(row => row?.key !== '$ruz-schedule'), weeks.flatMap(week => Array.isArray(week) ? week : []), true);
           } catch { onError(); }
         }, onError);
       },
