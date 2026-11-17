@@ -1,0 +1,11 @@
+{
+  "id": "./",
+  "name": "Absurd",
+  "short_name": "Absurd",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f5f2",
+  "theme_color": "#f5f5f2",
+  "icons": [{"src": "./absurd-icon.svg", "sizes": "any", "type": "image/svg+xml"}]
+}
