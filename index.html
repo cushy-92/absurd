@@ -136,6 +136,7 @@
       .auth-fields input{font-size:16px}
     }
     .auth-brand{display:flex;align-items:center;gap:9px;font-size:20px;font-weight:800;letter-spacing:-1px}
+    button.auth-brand{border:0;background:none;color:inherit;padding:0}
     .auth-mark{display:grid;place-items:center;width:31px;height:31px;border-radius:10px;background:var(--acid);font-size:21px}
     .auth-card h1{font-size:24px;letter-spacing:-1px;margin:23px 0 7px}
     .auth-tabs{display:flex;gap:6px;background:#f0f1ec;padding:4px;border-radius:11px;margin-bottom:14px}
@@ -163,7 +164,6 @@
         <h1>Немного порядка.<br>Больше воздуха.</h1>
         <p>Дела, дедлайны, деньги и цели в одном личном пространстве.</p>
         <div class="landing-actions">
-          <button type="button" class="button" data-google-signin>Войти через Google</button>
           <button type="button" class="button" data-open-auth="signup">Зарегистрироваться</button>
           <button type="button" class="button ghost" data-open-auth="login">Войти</button>
         </div>
@@ -175,7 +175,7 @@
       </div>
     </div>
     <div class="auth-card" id="authPanel" hidden>
-      <div class="auth-brand"><span class="auth-mark">a</span><span>absurd</span></div>
+      <button type="button" class="auth-brand" id="authBack" aria-label="absurd — на главную"><span class="auth-mark" aria-hidden="true">a</span><span>absurd</span></button>
       <h1 id="authTitle">Вход</h1>
       <button type="button" class="button google-auth" data-google-signin>Продолжить через Google</button>
       <div class="auth-tabs" id="authTabs"><button type="button" data-auth-mode="login" class="active">Войти</button><button type="button" data-auth-mode="signup">Регистрация</button></div>
@@ -185,7 +185,6 @@
         <div class="auth-actions"><button id="authReset" class="auth-link" type="button">Забыли пароль?</button><span><button id="authResend" class="auth-link" type="button" hidden>Отправить письмо повторно</button><button id="authCheck" class="auth-link" type="button" hidden>Я подтвердил email</button></span></div>
       </form>
       <p id="authMessage" class="auth-message" aria-live="polite"></p>
-      <button type="button" class="auth-link" id="authBack">На главную</button>
     </div>
   </section>
   <div id="cloudLoading">Загружаю данные аккаунта…</div>
