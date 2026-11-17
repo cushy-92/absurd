@@ -215,7 +215,7 @@
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-firestore-compat.js"></script>
-  <script src="./auth-client.js?v=landing-1"></script>
+  <script src="./auth-client.js?v=bot-setup-1"></script>
   <script>
   (()=>{
     const KEY='absurd-routine-v1';
@@ -368,6 +368,7 @@
     let ruzLessons=[];
     let polytechBotUid='';
     let polytechStatus='';
+    let polytechSetup=null;
     let stopPolytechLinks=()=>{};
     let stopPolytechDeadlines=()=>{};
     function safeMoodleUrl(url){
@@ -424,55 +425,49 @@
     }
     function polytechPanel(){
       if(!window.absurdPolytech||!window.absurdAuthenticated)return '';
+      const secret=(name,value)=>`<div style="margin-top:10px"><div class="eyebrow" style="margin-bottom:5px">${safe(name)}</div><div style="display:flex;gap:8px;align-items:stretch"><input value="${safe(value)}" readonly aria-label="${safe(name)}" style="min-width:0;font-family:var(--mono);font-size:11px"><button type="button" class="button ghost small" data-copy-polytech="${safe(value)}">Копировать</button></div></div>`;
+      const setup=polytechSetup?`<div style="margin-top:16px;padding:16px;border:1px solid #f0d7aa;border-radius:16px;background:#fff8eb">
+        <div style="font-weight:700">Ключ создан и бот уже привязан</div>
+        <p class="page-sub" style="margin:6px 0 0">Скопируй значения сейчас: секретный ключ после обновления страницы больше не покажется.</p>
+        ${secret('ABSURD_OWNER_UID',polytechSetup.ownerUid)}
+        ${secret('ABSURD_BOT_REFRESH_TOKEN',polytechSetup.refreshToken)}
+      </div>`:'';
       return `<section class="card schedule-day" style="max-width:620px"><h2>PolytechBot</h2>
-        <p class="page-sub">UID аккаунта для GitHub Actions: <code style="overflow-wrap:anywhere">${safe(window.absurdPolytech.ownerUid())}</code></p>
-        ${polytechStatus?`<p class="page-sub">${safe(polytechStatus)}</p>`:''}
-        <details style="margin-top:14px">
-          <summary class="text-link" style="cursor:pointer">${polytechBotUid?'Заменить бота':'Подключить бота'}</summary>
-          <form id="polytechLinkForm" style="margin-top:10px">
-            <label class="field">UID бота из PowerShell
-              <input name="botUid" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="128" required>
-            </label>
-            <button type="submit" class="button small" style="margin-top:10px">Сохранить привязку</button>
-            <p class="page-sub" data-polytech-feedback role="status" hidden></p>
-          </form>
+        <p class="page-sub">Переносит личные дедлайны из СДО и расписание группы. Данные каждого аккаунта изолированы.</p>
+        ${polytechStatus?`<p class="page-sub" style="margin-top:8px">${safe(polytechStatus)}</p>`:''}
+        ${setup}
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
+          <button type="button" class="button small" data-polytech-create>${polytechBotUid?'Создать новый ключ':'Подключить бота'}</button>
+          <a class="button ghost small" href="https://github.com/cushy-92/absurd-polytech-bot/generate" target="_blank" rel="noopener">Создать приватного бота</a>
+          ${polytechBotUid?'<button type="button" class="button ghost small" data-polytech-unlink>Отключить</button>':''}
+        </div>
+        <details style="margin-top:14px"><summary class="text-link" style="cursor:pointer">Что нужно добавить в GitHub</summary>
+          <ol class="page-sub" style="padding-left:20px;line-height:1.7">
+            <li><code>SDO_USERNAME</code> — логин СДО.</li><li><code>SDO_PASSWORD</code> — пароль СДО.</li>
+            <li><code>ABSURD_OWNER_UID</code> и <code>ABSURD_BOT_REFRESH_TOKEN</code> — значения, которые выдаст кнопка подключения.</li>
+            <li>В Variables добавь ссылку на расписание своей группы как <code>RUZ_GROUP_URL</code>.</li>
+          </ol>
         </details>
-        ${polytechBotUid?'<button type="button" class="button ghost small" data-polytech-unlink style="margin-top:10px">Отключить</button>':''}
+        <p class="page-sub" data-polytech-feedback role="status" hidden></p>
         </section>`;
     }
-    document.addEventListener('submit',async event=>{
-      const form=event.target;
-      if(form.id!=='polytechLinkForm')return;
-      event.preventDefault();
-      const botUid=form.elements.botUid.value.trim();
-      const feedback=form.querySelector('[data-polytech-feedback]');
-      const button=form.querySelector('button');
-      feedback.hidden=false;
-      if(!/^[A-Za-z0-9_-]{20,128}$/.test(botUid)){
-        feedback.textContent='Вставь только значение после «UID бота для Absurd» из PowerShell.';
+    document.addEventListener('click',async event=>{
+      const copy=event.target.closest('[data-copy-polytech]');
+      if(copy){
+        try{await navigator.clipboard.writeText(copy.dataset.copyPolytech);copy.textContent='Скопировано';setTimeout(()=>copy.textContent='Копировать',1200)}
+        catch{alert('Не удалось скопировать. Выдели значение вручную.');}
         return;
       }
-      button.disabled=true;
-      feedback.textContent='Сохраняю привязку…';
-      try{
-        await window.absurdPolytech.link(botUid);
-        feedback.textContent='Бот подключён.';
-      }catch(error){
-        const code=error?.code;
-        if(code==='permission-denied'){
-          feedback.textContent='Firestore отказал в сохранении (permission-denied). Проверь, что правила polytechLinks опубликованы в базе (default) проекта absurd-146c4.';
-        }else if(code==='unavailable'||code==='auth/network-request-failed'){
-          feedback.textContent='Не удалось связаться с Firebase. Проверь подключение и повтори.';
-        }else{
-          feedback.textContent='Не удалось сохранить привязку. Ошибка: '+(code||error?.name||'неизвестная')+'.';
-        }
-      }finally{
-        button.disabled=false;
+      const create=event.target.closest('[data-polytech-create]');
+      if(create){
+        const feedback=$('[data-polytech-feedback]');
+        create.disabled=true;feedback.hidden=false;feedback.textContent='Создаю защищённый ключ…';
+        try{polytechSetup=await window.absurdPolytech.createBotKey();polytechStatus='Бот привязан. Осталось добавить четыре значения в приватный репозиторий.';renderSafe();}
+        catch(error){feedback.textContent='Не удалось создать ключ. '+(error?.code||error?.message||'Попробуй ещё раз.');create.disabled=false;}
+        return;
       }
-    });
-    document.addEventListener('click',async event=>{
       if(!event.target.closest('[data-polytech-unlink]'))return;
-      try{await window.absurdPolytech.unlink();}
+      try{await window.absurdPolytech.unlink();polytechSetup=null;}
       catch{alert('Не удалось отключить бота.');}
     });
     document.addEventListener('change',event=>{
