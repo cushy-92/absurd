@@ -100,6 +100,7 @@
     if (state && typeof state === 'object' && !Array.isArray(state)) {
       window.absurdOfflineSession = true;
       window.absurdState = {
+        accountUid: () => account.uid,
         readCached: () => ({ exists: true, state, cached: true, savedAt: cacheRead(key + ':time') }),
       };
       window.absurdPolytech = {
@@ -351,6 +352,7 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
       } catch { return { exists: false, state: {}, cached: true }; }
     };
     window.absurdState = {
+      accountUid: () => auth.currentUser?.emailVerified ? auth.currentUser.uid : '',
       readCached: readCache,
       async read() {
         const key = cacheKey();
