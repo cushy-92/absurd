@@ -219,7 +219,7 @@
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-firestore-compat.js"></script>
-  <script src="./auth-client.js?v=offline-2"></script>
+  <script src="./auth-client.js?v=offline-3"></script>
   <script>
   (()=>{
     const KEY='absurd-routine-v1';
@@ -235,9 +235,10 @@
     if(Object.hasOwn(labels,initialPage))page=initialPage;
     const $=s=>document.querySelector(s);const money=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(Math.abs(n))+' ₽';
     let accountSavedAt=0, polytexSavedAt=0;
+    const offlineMode=()=>!navigator.onLine||window.absurdOfflineSession===true;
     function updateOfflineNotice(){
       const notice=$('#offlineNotice');
-      notice.hidden=navigator.onLine;
+      notice.hidden=!offlineMode();
       if(notice.hidden)return;
       const savedAt=Math.max(accountSavedAt,polytexSavedAt);
       const label=savedAt?new Intl.DateTimeFormat('ru-RU',{dateStyle:'short',timeStyle:'short'}).format(new Date(savedAt)):'';
@@ -253,10 +254,10 @@
       setTimeout(()=>toast.hidden=true,3500);
     }
     document.addEventListener('click',event=>{
-      if(!navigator.onLine&&event.target.closest(offlineActions))blockOffline(event);
+      if(offlineMode()&&event.target.closest(offlineActions))blockOffline(event);
     },true);
     document.addEventListener('submit',event=>{
-      if(!navigator.onLine&&event.target.matches('#modal form,#polytechCentralForm'))blockOffline(event);
+      if(offlineMode()&&event.target.matches('#modal form,#polytechCentralForm'))blockOffline(event);
     },true);
     const safe=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     function save(){localRevision++;render();if(!cloudReady)return;const snapshot=JSON.stringify(data);saveQueue=saveQueue.then(()=>window.absurdState.write(snapshot)).catch(()=>{const toast=document.getElementById('cloudToast');if(toast){toast.textContent='Не удалось сохранить. Проверь подключение и повтори действие.';toast.hidden=false;setTimeout(()=>toast.hidden=true,4500)}})}
@@ -311,7 +312,7 @@
     async function importIcs(file){
       if(!file)return;
       const events=parseIcs(await file.text());
-      if(!navigator.onLine)throw new Error('Нет подключения к интернету.');
+      if(offlineMode())throw new Error('Нет подключения к интернету.');
       const key=event=>JSON.stringify([event.icalUID,event.repeatDays?null:event.date||'']);
       const existing=new Map(data.events.filter(event=>event.icalUID).map(event=>[key(event),event]));
       let added=0,updated=0;
@@ -537,7 +538,7 @@
     async function importDeadlines(file){
       if(!file)return;
       const contents=(await file.text()).replace(/^\uFEFF/,'').replace(/\r?\n[ \t]/g,'');
-      if(!navigator.onLine)throw new Error('Нет подключения к интернету.');
+      if(offlineMode())throw new Error('Нет подключения к интернету.');
       if(!/^BEGIN:VCALENDAR\s*$/im.test(contents))throw new Error('Выбери файл календаря .ics.');
       const known=new Set(data.deadlines.map(deadline=>deadline.importKey).filter(Boolean));
       const added=[];
@@ -648,7 +649,7 @@
     }}if(kind==='income'||kind==='expense'||kind==='saving')setFinanceFrequency(formEl.querySelector('[data-frequency]').value);$('#modal').showModal();$('#modal form [name="title"]').focus()}
     function setScheduleMode(mode){const formEl=$('#modal form'),once=formEl.querySelector('[data-event-once]'),repeat=formEl.querySelector('[data-event-repeat]');if(!once||!repeat)return;formEl.dataset.scheduleMode=mode;once.hidden=mode!=='once';repeat.hidden=mode!=='repeat';once.querySelectorAll('input').forEach(x=>x.disabled=mode!=='once');repeat.querySelectorAll('input').forEach(x=>x.disabled=mode!=='repeat');const start=repeat.querySelector('[name=repeatStart]');if(start)start.disabled=mode!=='repeat';formEl.querySelectorAll('[data-schedule-mode]').forEach(b=>b.classList.toggle('active',b.dataset.scheduleMode===mode))}
     function setFinanceFrequency(value){const formEl=$('#modal form'),weekly=formEl.querySelector('.repeat-weekly'),monthly=formEl.querySelector('.repeat-monthly');if(!weekly||!monthly)return;weekly.hidden=value!=='weekly';monthly.hidden=value!=='monthly';weekly.querySelector('select').disabled=value!=='weekly';monthly.querySelector('input').disabled=value!=='monthly';const label=formEl.querySelector('[data-date-label]');if(label)label.textContent=value==='none'?'Дата':'Начать с даты'}
-    function account(){const email=$('#accountEmail').textContent.trim()||'—';const initial=(email[0]||'A').toUpperCase();return `<div class="entry-head"><div><div class="eyebrow">профиль</div><h1>Личный аккаунт</h1></div></div><section class="card" style="max-width:620px"><div style="display:flex;align-items:center;gap:14px"><div class="avatar" style="width:48px;height:48px;font-size:16px">${safe(initial)}</div><div><div style="font-weight:700;word-break:break-word">${safe(email)}</div><div class="item-meta" style="margin-top:5px">Email подтверждён</div></div></div><p class="item-meta" style="margin:20px 0 16px;line-height:1.6">Ваши цели сохраняются в этом аккаунте.</p><button class="button ghost small" type="button" data-account-logout>Выйти из аккаунта</button></section>${polytechPanel()}`}
+    function account(){const email=$('#accountEmail').textContent.trim()||'—';const initial=(email[0]||'A').toUpperCase();return `<div class="entry-head"><div><div class="eyebrow">профиль</div><h1>Личный аккаунт</h1></div></div><section class="card" style="max-width:620px"><div style="display:flex;align-items:center;gap:14px"><div class="avatar" style="width:48px;height:48px;font-size:16px">${safe(initial)}</div><div><div style="font-weight:700;word-break:break-word">${safe(email)}</div><div class="item-meta" style="margin-top:5px">Email подтверждён</div></div></div><p class="item-meta" style="margin:20px 0 16px;line-height:1.6">Ваши цели сохраняются в этом аккаунте.</p><button class="button ghost small" type="button" data-account-logout>Выйти из аккаунта</button><p id="offlineReady" class="item-meta" role="status" hidden></p></section>${polytechPanel()}`}
     function render(){const titles={home:'Обзор',finance:'Финансы',schedule:'Календарь',dreams:'Мечты',goals:'Цели',deadlines:'Дедлайны',account:'Личный аккаунт'};$('#crumb').textContent=labels[page];$('#content').innerHTML=({home,finance,schedule,dreams,goals,deadlines,account}[page])();document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));}
     function navigate(p){if(!labels[p])return;page=p;history.replaceState(null,'','#'+p);render();window.scrollTo({top:0,behavior:'smooth'})}
     document.addEventListener('click',event=>{
@@ -733,13 +734,21 @@
       save();
     };
     function initNav(){const source=[...document.querySelectorAll('#sideNav [data-page]')];$('#mobileNav').innerHTML=source.map(b=>`<button data-page="${b.dataset.page}" class="${b.dataset.page===page?'active':''}"><span class="nav-icon">${icons[b.dataset.page]}</span>${b.textContent.trim()}</button>`).join('')}
-    function renderSafe(){render();initNav()}
+    function updateOfflineReady(){
+      const label=$('#offlineReady');
+      if(!label)return;
+      const ready=!offlineMode()&&navigator.serviceWorker?.controller?.scriptURL.endsWith('offline-worker.js?v=3')&&window.absurdState?.readCached()?.exists;
+      label.hidden=!ready;
+      if(ready)label.textContent='Офлайн-копия готова на этом устройстве';
+    }
+    function renderSafe(){render();initNav();updateOfflineReady()}
+    navigator.serviceWorker?.addEventListener('controllerchange',updateOfflineReady);
     // Navigation updates both desktop and mobile state.
     const navFn=navigate;navigate=(p)=>{page=p;history.replaceState(null,'','#'+p);renderSafe();window.scrollTo({top:0,behavior:'smooth'})};
     bind();
     renderSafe();
     updateOfflineNotice();
-    if('serviceWorker' in navigator&&navigator.onLine) navigator.serviceWorker.register('./offline-worker.js').catch(()=>{});
+    if('serviceWorker' in navigator&&!offlineMode()) navigator.serviceWorker.register('./offline-worker.js?v=3').catch(()=>{});
     const calendarClock=()=>todayISO()+':'+[...data.events,...ruzLessons].map(event=>Number(eventTimePassed(event))).join('')+':'+[...data.deadlines,...botDeadlines()].map(deadline=>deadlineStatus(deadline)).join('|');
     let lastCalendarClock=calendarClock();
     function refreshCalendarClock(){
@@ -759,7 +768,7 @@
       if(cloudLoadStarted)return;
       cloudLoadStarted=true;
       const cached=window.absurdState.readCached?.();
-      if(!navigator.onLine&&!cached?.exists){
+      if(offlineMode()&&!cached?.exists){
         cloudLoadStarted=false;
         const loading=$('#cloudLoading');
         if(loading)loading.textContent='Нет подключения к интернету. Подключитесь к сети, чтобы загрузить данные аккаунта.';
@@ -767,7 +776,7 @@
       }
       if(cached?.exists){
         applyCloudResult(cached);cloudReady=true;document.getElementById('cloudLoading')?.remove();renderSafe();
-        if(!navigator.onLine)return;
+        if(offlineMode())return;
         const revisionBeforeRefresh=localRevision;
         window.absurdState.read().then(result=>{if(localRevision!==revisionBeforeRefresh)return;if(result.exists){applyCloudResult(result);renderSafe()}}).catch(()=>{});
         return;
