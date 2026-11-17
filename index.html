@@ -6,6 +6,8 @@
   <meta name="theme-color" content="#f5f5f2" />
   <meta name="description" content="absurd — личное пространство для финансов, расписания, мечт и целей." />
   <link rel="icon" type="image/svg+xml" href="./absurd-icon.svg" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>absurd — пространство твоего ритма</title>
   <style>
     :root{--paper:#f5f5f2;--ink:#171816;--muted:#797c75;--line:#e2e3dd;--panel:#fff;--acid:#d6fa58;--lav:#d9d0ff;--peach:#ffd5bb;--blue:#c7e6ff;--green:#e4f0d2;--radius:18px;--font:system-ui,-apple-system,'Segoe UI',sans-serif;--mono:ui-monospace,'SFMono-Regular',Consolas,monospace}
@@ -219,7 +221,7 @@
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-firestore-compat.js"></script>
-  <script src="./auth-client.js?v=offline-3"></script>
+  <script src="./auth-client.js?v=offline-4"></script>
   <script>
   (()=>{
     const KEY='absurd-routine-v1';
@@ -649,9 +651,37 @@
     }}if(kind==='income'||kind==='expense'||kind==='saving')setFinanceFrequency(formEl.querySelector('[data-frequency]').value);$('#modal').showModal();$('#modal form [name="title"]').focus()}
     function setScheduleMode(mode){const formEl=$('#modal form'),once=formEl.querySelector('[data-event-once]'),repeat=formEl.querySelector('[data-event-repeat]');if(!once||!repeat)return;formEl.dataset.scheduleMode=mode;once.hidden=mode!=='once';repeat.hidden=mode!=='repeat';once.querySelectorAll('input').forEach(x=>x.disabled=mode!=='once');repeat.querySelectorAll('input').forEach(x=>x.disabled=mode!=='repeat');const start=repeat.querySelector('[name=repeatStart]');if(start)start.disabled=mode!=='repeat';formEl.querySelectorAll('[data-schedule-mode]').forEach(b=>b.classList.toggle('active',b.dataset.scheduleMode===mode))}
     function setFinanceFrequency(value){const formEl=$('#modal form'),weekly=formEl.querySelector('.repeat-weekly'),monthly=formEl.querySelector('.repeat-monthly');if(!weekly||!monthly)return;weekly.hidden=value!=='weekly';monthly.hidden=value!=='monthly';weekly.querySelector('select').disabled=value!=='weekly';monthly.querySelector('input').disabled=value!=='monthly';const label=formEl.querySelector('[data-date-label]');if(label)label.textContent=value==='none'?'Дата':'Начать с даты'}
-    function account(){const email=$('#accountEmail').textContent.trim()||'—';const initial=(email[0]||'A').toUpperCase();return `<div class="entry-head"><div><div class="eyebrow">профиль</div><h1>Личный аккаунт</h1></div></div><section class="card" style="max-width:620px"><div style="display:flex;align-items:center;gap:14px"><div class="avatar" style="width:48px;height:48px;font-size:16px">${safe(initial)}</div><div><div style="font-weight:700;word-break:break-word">${safe(email)}</div><div class="item-meta" style="margin-top:5px">Email подтверждён</div></div></div><p class="item-meta" style="margin:20px 0 16px;line-height:1.6">Ваши цели сохраняются в этом аккаунте.</p><button class="button ghost small" type="button" data-account-logout>Выйти из аккаунта</button><p id="offlineReady" class="item-meta" role="status" hidden></p></section>${polytechPanel()}`}
+    function account(){const email=$('#accountEmail').textContent.trim()||'—';const initial=(email[0]||'A').toUpperCase();return `<div class="entry-head"><div><div class="eyebrow">профиль</div><h1>Личный аккаунт</h1></div></div><section class="card" style="max-width:620px"><div style="display:flex;align-items:center;gap:14px"><div class="avatar" style="width:48px;height:48px;font-size:16px">${safe(initial)}</div><div><div style="font-weight:700;word-break:break-word">${safe(email)}</div><div class="item-meta" style="margin-top:5px">Email подтверждён</div></div></div><p class="item-meta" style="margin:20px 0 16px;line-height:1.6">Ваши цели сохраняются в этом аккаунте.</p><button class="button ghost small" type="button" data-account-logout>Выйти из аккаунта</button><p id="offlineReady" class="item-meta" role="status" hidden></p></section>${polytechPanel()}${pushPanel()}`}
+    function pushPanel(){
+      if(!window.absurdPush||offlineMode())return '';
+      return '<section class="card schedule-day" style="max-width:620px"><h2>Уведомления</h2><p class="page-sub">Напомним о дедлайнах PolytexBot, когда до срока останется меньше суток.</p><button class="button small" type="button" data-push-toggle disabled>Включить уведомления</button><p data-push-status class="item-meta" role="status"></p></section>';
+    }
+    async function updatePushPanel(){
+      const button=$('[data-push-toggle]'),label=$('[data-push-status]');
+      if(!button||!label)return;
+      try{
+        const state=await window.absurdPush.status();
+        button.disabled=state!=='on'&&state!=='off';
+        button.dataset.pushToggle=state==='on'?'off':'on';
+        button.textContent=state==='on'?'Выключить уведомления':'Включить уведомления';
+        label.textContent={unsupported:'На iPhone и iPad добавь Absurd на экран «Домой» и открой его оттуда.',denied:'Уведомления заблокированы в настройках устройства.',loading:'Подготавливаем уведомления…',on:'Включены на этом устройстве',off:''}[state];
+      }catch{label.textContent='Не удалось проверить настройки уведомлений.'}
+    }
+    document.addEventListener('click',async event=>{
+      const button=event.target.closest('[data-push-toggle]');
+      if(!button||button.disabled||offlineMode())return;
+      button.disabled=true;
+      try{
+        await window.absurdPush[button.dataset.pushToggle==='off'?'disable':'enable']();
+        await updatePushPanel();
+      }catch(error){
+        button.disabled=false;
+        const label=$('[data-push-status]');
+        if(label)label.textContent=error.message||'Не удалось изменить настройки уведомлений.';
+      }
+    });
     function render(){const titles={home:'Обзор',finance:'Финансы',schedule:'Календарь',dreams:'Мечты',goals:'Цели',deadlines:'Дедлайны',account:'Личный аккаунт'};$('#crumb').textContent=labels[page];$('#content').innerHTML=({home,finance,schedule,dreams,goals,deadlines,account}[page])();document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));}
-    function navigate(p){if(!labels[p])return;page=p;history.replaceState(null,'','#'+p);render();window.scrollTo({top:0,behavior:'smooth'})}
+    function navigate(p){if(!labels[p])return;page=p;history.replaceState(null,'','#'+p);renderSafe();window.scrollTo({top:0,behavior:'smooth'})}
     document.addEventListener('click',event=>{
       const card=event.target.closest('[data-note-edit]');
       if(!card)return;
@@ -737,18 +767,19 @@
     function updateOfflineReady(){
       const label=$('#offlineReady');
       if(!label)return;
-      const ready=!offlineMode()&&navigator.serviceWorker?.controller?.scriptURL.endsWith('offline-worker.js?v=3')&&window.absurdState?.readCached()?.exists;
+      const ready=!offlineMode()&&navigator.serviceWorker?.controller?.scriptURL.endsWith('offline-worker.js?v=4')&&window.absurdState?.readCached()?.exists;
       label.hidden=!ready;
       if(ready)label.textContent='Офлайн-копия готова на этом устройстве';
     }
-    function renderSafe(){render();initNav();updateOfflineReady()}
+    function renderSafe(){render();initNav();updateOfflineReady();updatePushPanel()}
+    navigator.serviceWorker?.addEventListener('controllerchange',updatePushPanel);
     navigator.serviceWorker?.addEventListener('controllerchange',updateOfflineReady);
     // Navigation updates both desktop and mobile state.
     const navFn=navigate;navigate=(p)=>{page=p;history.replaceState(null,'','#'+p);renderSafe();window.scrollTo({top:0,behavior:'smooth'})};
     bind();
     renderSafe();
     updateOfflineNotice();
-    if('serviceWorker' in navigator&&!offlineMode()) navigator.serviceWorker.register('./offline-worker.js?v=3').catch(()=>{});
+    if('serviceWorker' in navigator&&!offlineMode()) navigator.serviceWorker.register('./offline-worker.js?v=4').catch(()=>{});
     const calendarClock=()=>todayISO()+':'+[...data.events,...ruzLessons].map(event=>Number(eventTimePassed(event))).join('')+':'+[...data.deadlines,...botDeadlines()].map(deadline=>deadlineStatus(deadline)).join('|');
     let lastCalendarClock=calendarClock();
     function refreshCalendarClock(){
