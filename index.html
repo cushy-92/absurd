@@ -142,6 +142,12 @@
     .top-context{display:grid;gap:6px;min-width:0;margin-right:10px}
     .top-context .hello{display:block;line-height:1.35}
     .top-right{flex-shrink:0}
+    .side-bottom .profile{width:100%;min-width:0;border:0;border-top:1px solid var(--line);background:transparent;color:inherit;text-align:left;padding:12px 5px 0}
+    .side-bottom .avatar{flex:0 0 34px}
+    .side-bottom .profile-copy{display:grid;min-width:0;gap:2px;flex:1}
+    .side-bottom .profile-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .side-bottom .profile-note{margin:0}
+    .side-bottom .profile:hover .profile-name{text-decoration:underline;text-underline-offset:3px}
     .notification-settings{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
     .notification-settings .page-sub{margin:3px 0 0}
     .notification-settings [data-push-status]:empty{display:none}
@@ -215,7 +221,7 @@
           <button data-page="deadlines"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M5 21V4m0 1h14l-3 4 3 4H5"/></svg></span>Дедлайны</button>
         </nav>
       </div>
-      <div class="side-bottom"><div class="profile"><div class="avatar">A</div><div><div class="profile-name" id="accountLabel">Мой аккаунт</div><div class="profile-note">всё начинается с малого</div></div></div></div>
+      <div class="side-bottom"><button class="profile" type="button" data-go="account" aria-label="Открыть личный аккаунт"><span class="avatar" id="sidebarAvatar" aria-hidden="true">A</span><span class="profile-copy"><span class="profile-name" id="accountLabel">Мой аккаунт</span><span class="profile-note">Личный аккаунт</span></span></button></div>
     </aside>
     <main class="main">
       <header class="topbar"><div class="top-context"><div class="crumb"><a class="crumb-home" href="#home" data-go="home" aria-label="На главную страницу">absurd</a> <span style="color:#b5b7af">/</span> <span id="crumb">обзор</span></div><span class="hello">Хороший день, чтобы навести ясность</span></div><div class="top-right"><span class="account-email" id="accountEmail" hidden></span><button class="button ghost small account-trigger" type="button" data-page="notifications" aria-label="Уведомления" title="Уведомления"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-8 12a2 2 0 0 0 4 0"/></svg></span></button><button class="button ghost small account-trigger" type="button" data-page="account" aria-label="Личный аккаунт" title="Личный аккаунт"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c.6-4.2 3.3-6.5 8-6.5s7.4 2.3 8 6.5"/></svg></span></button><span class="date-pill" id="today"></span></div></header>
@@ -803,7 +809,12 @@
       label.hidden=!ready;
       if(ready)label.textContent='Офлайн-копия готова на этом устройстве';
     }
-    function renderSafe(){render();initNav();updateOfflineReady();updatePushPanel();updatePushHistory()}
+    function renderSafe(){
+      const email=$('#accountEmail').textContent.trim();
+      $('#accountLabel').title=email;
+      $('#sidebarAvatar').textContent=(email[0]||'A').toUpperCase();
+      render();initNav();updateOfflineReady();updatePushPanel();updatePushHistory();
+    }
     navigator.serviceWorker?.addEventListener('controllerchange',updatePushPanel);
     navigator.serviceWorker?.addEventListener('message',event=>{
       if(event.data?.type==='absurd-push-history')updatePushHistory();
