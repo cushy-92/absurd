@@ -139,6 +139,9 @@
     }
     .auth-brand{display:flex;align-items:center;gap:9px;font-size:20px;font-weight:800;letter-spacing:-1px}
     button.auth-brand{border:0;background:none;color:inherit;padding:0}
+    .top-context{display:grid;gap:6px;min-width:0;margin-right:10px}
+    .top-context .hello{display:block;line-height:1.35}
+    .top-right{flex-shrink:0}
     .auth-mark{display:grid;place-items:center;width:31px;height:31px;border-radius:10px;background:var(--acid);font-size:21px}
     .auth-card h1{font-size:24px;letter-spacing:-1px;margin:23px 0 7px}
     .auth-tabs{display:flex;gap:6px;background:#f0f1ec;padding:4px;border-radius:11px;margin-bottom:14px}
@@ -210,7 +213,7 @@
       <div class="side-bottom"><div class="profile"><div class="avatar">A</div><div><div class="profile-name" id="accountLabel">Мой аккаунт</div><div class="profile-note">всё начинается с малого</div></div></div></div>
     </aside>
     <main class="main">
-      <header class="topbar"><div class="crumb"><a class="crumb-home" href="#home" data-go="home" aria-label="На главную страницу">absurd</a> <span style="color:#b5b7af">/</span> <span id="crumb">обзор</span></div><div class="top-right"><span class="hello">Хороший день, чтобы навести ясность</span><span class="account-email" id="accountEmail" hidden></span><button class="button ghost small account-trigger" type="button" data-page="account" aria-label="Личный аккаунт" title="Личный аккаунт"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c.6-4.2 3.3-6.5 8-6.5s7.4 2.3 8 6.5"/></svg></span></button><span class="date-pill" id="today"></span></div></header>
+      <header class="topbar"><div class="top-context"><div class="crumb"><a class="crumb-home" href="#home" data-go="home" aria-label="На главную страницу">absurd</a> <span style="color:#b5b7af">/</span> <span id="crumb">обзор</span></div><span class="hello">Хороший день, чтобы навести ясность</span></div><div class="top-right"><span class="account-email" id="accountEmail" hidden></span><button class="button ghost small account-trigger" type="button" data-page="notifications" aria-label="Уведомления" title="Уведомления"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-8 12a2 2 0 0 0 4 0"/></svg></span></button><button class="button ghost small account-trigger" type="button" data-page="account" aria-label="Личный аккаунт" title="Личный аккаунт"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c.6-4.2 3.3-6.5 8-6.5s7.4 2.3 8 6.5"/></svg></span></button><span class="date-pill" id="today"></span></div></header>
       <p id="offlineNotice" class="card page-sub" role="status" style="padding:12px 16px;margin:0 0 16px;background:#fff4dc" hidden></p>
       <div id="content"></div>
       <footer class="footer"><span>absurd © 2026</span><span>маленькие шаги тоже движение</span></footer>
@@ -232,7 +235,7 @@
     let page='home';
     let financeType='income';
     const icons={home:'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/></svg>',finance:'<svg viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H20v14H5.5A2.5 2.5 0 0 1 3 16.5z"/><path d="M3 8h17M15 12h2M7 5V3h11"/></svg>',schedule:'<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 10h18M8 14h3M8 17h7"/></svg>',dreams:'<svg viewBox="0 0 24 24"><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.64 5.64l1.42 1.42m9.88 9.88 1.42 1.42m0-12.72-1.42 1.42m-9.88 9.88-1.42 1.42"/><circle cx="12" cy="12" r="4"/></svg>',goals:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/><path d="m13 11 6-6"/></svg>',deadlines:'<svg viewBox="0 0 24 24"><path d="M5 21V4m0 1h14l-3 4 3 4H5"/></svg>',account:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c.6-4.2 3.3-6.5 8-6.5s7.4 2.3 8 6.5"/></svg>'};
-    const labels={home:'обзор',finance:'финансы',schedule:'календарь',dreams:'мечты',goals:'цели',deadlines:'дедлайны',account:'личный аккаунт'};
+    const labels={home:'обзор',finance:'финансы',schedule:'календарь',dreams:'мечты',goals:'цели',deadlines:'дедлайны',account:'личный аккаунт',notifications:'уведомления'};
     const initialPage=location.hash.slice(1);
     if(Object.hasOwn(labels,initialPage))page=initialPage;
     const $=s=>document.querySelector(s);const money=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(Math.abs(n))+' ₽';
@@ -656,6 +659,9 @@
       if(!window.absurdPush||offlineMode())return '';
       return '<section class="card schedule-day" style="max-width:620px"><h2>Уведомления</h2><p class="page-sub">Напомним о дедлайнах PolytexBot, когда до срока останется меньше суток.</p><button class="button small" type="button" data-push-toggle disabled>Включить уведомления</button><p data-push-status class="item-meta" role="status"></p></section>';
     }
+    function notifications(){
+      return pushPanel()||'<section class="card schedule-day" style="max-width:620px"><h2>Уведомления</h2><p class="page-sub">Подключись к интернету, чтобы изменить настройки уведомлений.</p></section>';
+    }
     async function updatePushPanel(){
       const button=$('[data-push-toggle]'),label=$('[data-push-status]');
       if(!button||!label)return;
@@ -680,7 +686,7 @@
         if(label)label.textContent=error.message||'Не удалось изменить настройки уведомлений.';
       }
     });
-    function render(){const titles={home:'Обзор',finance:'Финансы',schedule:'Календарь',dreams:'Мечты',goals:'Цели',deadlines:'Дедлайны',account:'Личный аккаунт'};$('#crumb').textContent=labels[page];$('#content').innerHTML=({home,finance,schedule,dreams,goals,deadlines,account}[page])();document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));}
+    function render(){const titles={home:'Обзор',finance:'Финансы',schedule:'Календарь',dreams:'Мечты',goals:'Цели',deadlines:'Дедлайны',account:'Личный аккаунт'};$('#crumb').textContent=labels[page];$('#content').innerHTML=({home,finance,schedule,dreams,goals,deadlines,account,notifications}[page])();document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));}
     function navigate(p){if(!labels[p])return;page=p;history.replaceState(null,'','#'+p);renderSafe();window.scrollTo({top:0,behavior:'smooth'})}
     document.addEventListener('click',event=>{
       const card=event.target.closest('[data-note-edit]');
