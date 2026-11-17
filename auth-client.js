@@ -68,6 +68,76 @@
   tabs.forEach(button => button.addEventListener('click', () => setMode(button.dataset.authMode)));
   setMode('login');
 
+  const offlineIdentity = 'absurd-offline-account';
+  const cacheRead = key => {
+    try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
+  };
+  const cacheWrite = (key, value) => {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+  };
+  const cacheRemove = key => {
+    try { localStorage.removeItem(key); } catch {}
+  };
+  const clearOfflineCopy = uid => {
+    for (const prefix of ['absurd-cloud-cache:', 'absurd-polytech-link:', 'absurd-polytech-data:']) {
+      cacheRemove(prefix + uid);
+    }
+    cacheRemove('absurd-cloud-cache:' + uid + ':time');
+    cacheRemove(offlineIdentity);
+  };
+  const decodePolytex = snapshot => {
+    const rows = JSON.parse(snapshot);
+    if (!Array.isArray(rows)) throw new Error('Unexpected PolytexBot snapshot');
+    const schedule = rows.find(row => row?.key === '$ruz-schedule' && row.kind === 'ruz-schedule');
+    const weeks = Object.values(schedule?.weeks || {});
+    return [rows.filter(row => row?.key !== '$ruz-schedule'), weeks.flatMap(week => Array.isArray(week) ? week : [])];
+  };
+  const centralUid = '9vWAFebDZmQIlMxnR3jcgVRytaU2';
+  if (!navigator.onLine) {
+    const account = cacheRead(offlineIdentity);
+    const key = typeof account?.uid === 'string' && 'absurd-cloud-cache:' + account.uid;
+    const state = key && cacheRead(key);
+    if (state && typeof state === 'object' && !Array.isArray(state)) {
+      window.absurdOfflineSession = true;
+      window.absurdState = {
+        readCached: () => ({ exists: true, state, cached: true, savedAt: cacheRead(key + ':time') }),
+      };
+      window.absurdPolytech = {
+        centralUid,
+        watchLinks(onChange) {
+          onChange(cacheRead('absurd-polytech-link:' + account.uid) || '');
+          return () => {};
+        },
+        watchSnapshot(botUid, onChange, onError) {
+          const copy = cacheRead('absurd-polytech-data:' + account.uid);
+          try {
+            if (copy?.botUid === botUid) onChange(...decodePolytex(copy.snapshot), true, copy.savedAt);
+            else onChange([], [], false);
+          } catch { onError(); }
+          return () => {};
+        },
+      };
+      document.getElementById('accountLabel').textContent = account.email || 'Мой аккаунт';
+      document.getElementById('accountEmail').textContent = account.email || '';
+      screen.hidden = true;
+      announceAuthState(true);
+      window.addEventListener('online', () => location.reload(), { once: true });
+      window.addEventListener('storage', event => {
+        if (event.key === offlineIdentity && cacheRead(offlineIdentity)?.uid !== account.uid) location.reload();
+      });
+      return;
+    }
+    screen.hidden = false;
+    showAuthPanel();
+    form.hidden = true;
+    document.getElementById('authTabs').hidden = true;
+    panel.querySelector('[data-google-signin]').hidden = true;
+    say('Нет подключения к интернету. Открой Absurd с интернетом и дождись загрузки данных на этом устройстве.', true);
+    announceAuthState(false);
+    window.addEventListener('online', () => location.reload(), { once: true });
+    return;
+  }
+
   try {
     if (!window.firebase) throw new Error('Firebase SDK не загрузился.');
     // Replace these public web-app values with the Firebase config from the user's project.
@@ -88,7 +158,7 @@ const firebaseConfig = {
     const auth = firebase.auth();
     auth.languageCode = 'ru';
     await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-    const CENTRAL_BOT_UID = '9vWAFebDZmQIlMxnR3jcgVRytaU2';
+    const CENTRAL_BOT_UID = centralUid;
     const CENTRAL_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAtlA1IHiRMfcxXIVhyp3w
 r6k6LoPOh6c/YHpTSAAO8BeHQV3dl6va6fjpwLGOz0Y12rGIOpmkLXXbTjGGgGZk
@@ -133,15 +203,6 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
       if (!user?.emailVerified) throw new Error('Подтверди почту в Absurd.');
       return firebase.firestore().collection(collection).doc(user.uid);
     }
-    const cacheRead = key => {
-      try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
-    };
-    const cacheWrite = (key, value) => {
-      try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
-    };
-    const cacheRemove = key => {
-      try { localStorage.removeItem(key); } catch {}
-    };
     window.absurdPolytech = {
       centralUid: CENTRAL_BOT_UID,
       ownerUid: () => polytechRef('polytechLinks').id,
@@ -246,12 +307,9 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
           }
           if (typeof value.snapshot === 'string' && value.snapshot === lastSnapshot) return;
           try {
-            const rows = JSON.parse(value.snapshot);
-            if (!Array.isArray(rows)) throw new Error('Unexpected PolytechBot snapshot');
-            const schedule = rows.find(row => row?.key === '$ruz-schedule' && row.kind === 'ruz-schedule');
-            const weeks = Object.values(schedule?.weeks || {});
+            const decoded = decodePolytex(value.snapshot);
             lastSnapshot = value.snapshot;
-            onChange(rows.filter(row => row?.key !== '$ruz-schedule'), weeks.flatMap(week => Array.isArray(week) ? week : []), true, savedAt);
+            onChange(...decoded, true, savedAt);
           } catch { onError(); }
         };
         const cached = cacheRead(key);
@@ -329,10 +387,7 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
     let activeUid = '';
     auth.onAuthStateChanged(async user => {
       if (activeUid && (user?.uid !== activeUid || !user.emailVerified)) {
-        for (const key of ['absurd-cloud-cache:', 'absurd-polytech-link:', 'absurd-polytech-data:']) {
-          cacheRemove(key + activeUid);
-        }
-        cacheRemove('absurd-cloud-cache:' + activeUid + ':time');
+        clearOfflineCopy(activeUid);
         screen.hidden = false;
         announceAuthState(false);
         location.reload();
@@ -344,6 +399,7 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
       if (user && user.emailVerified) {
         try {
           activeUid = user.uid;
+          cacheWrite(offlineIdentity, { uid: user.uid, email: user.email || '' });
           document.getElementById('accountLabel').textContent = user.email || 'Мой аккаунт';
           document.getElementById('accountEmail').textContent = user.email || '';
           screen.hidden = true;
@@ -356,6 +412,8 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
           say('Не удалось проверить аккаунт. Попробуй войти ещё раз.', true);
         }
       } else {
+        const prior = cacheRead(offlineIdentity);
+        if (prior?.uid) clearOfflineCopy(prior.uid);
         screen.hidden = false;
         announceAuthState(false);
         if (unverifiedUser) {
