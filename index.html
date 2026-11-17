@@ -219,7 +219,7 @@
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-firestore-compat.js"></script>
-  <script src="./auth-client.js?v=central-1"></script>
+  <script src="./auth-client.js?v=central-2"></script>
   <script>
   (()=>{
     const KEY='absurd-routine-v1';
@@ -371,6 +371,8 @@
     let polytechRows=[];
     let ruzLessons=[];
     let polytechBotUid='';
+    let polytechLinkKnown=false;
+    let polytechLoading=true;
     let polytechStatus='';
     let stopPolytechLinks=()=>{};
     let stopPolytechDeadlines=()=>{};
@@ -393,14 +395,18 @@
       stopPolytechLinks();
       if(!window.absurdPolytech)return;
       stopPolytechLinks=window.absurdPolytech.watchLinks(botUid=>{
+        if(polytechLinkKnown&&polytechBotUid===botUid)return;
+        polytechLinkKnown=true;
         stopPolytechDeadlines();
         polytechBotUid=botUid;
+        polytechLoading=Boolean(botUid);
         polytechRows=[];
         ruzLessons=[];
         polytechStatus=botUid?'Ожидаем первую успешную проверку.':'';
         renderPolytech();
         if(!botUid)return;
-        stopPolytechDeadlines=window.absurdPolytech.watchSnapshot(botUid,(rows,lessons)=>{
+        stopPolytechDeadlines=window.absurdPolytech.watchSnapshot(botUid,(rows,lessons,hasSnapshot)=>{
+          polytechLoading=false;
           polytechRows=rows.filter(row=>row&&safeMoodleUrl(row.url)&&
             /^\d{4}-\d{2}-\d{2}$/.test(row.date)&&/^\d{2}:\d{2}$/.test(row.time)&&
             typeof row.title==='string'&&/^[a-z0-9.-]+:\d+$/.test(row.key));
@@ -415,13 +421,15 @@
               group:typeof group==='string'?group:'',
               ruzIndex,fromRuz:true
             }));
-          polytechStatus=polytechRows.length?'Дедлайны синхронизированы.':'Пока нет заданий с датой.';
+          polytechStatus=!hasSnapshot?'Ожидаем первую успешную проверку.':polytechRows.length?'Дедлайны синхронизированы.':'Пока нет заданий с датой.';
           renderPolytech();
         },()=>{
-          polytechStatus='Не удалось прочитать дедлайны PolytechBot.';
+          polytechLoading=false;
+          polytechStatus='Не удалось прочитать дедлайны PolytexBot.';
           renderPolytech();
         });
       },()=>{
+        polytechLoading=false;
         polytechStatus='Подключение пока недоступно. Проверь правила Firestore.';
         renderPolytech();
       });
@@ -430,16 +438,16 @@
       if(!window.absurdPolytech||!window.absurdAuthenticated)return '';
       const centralConnected=polytechBotUid===window.absurdPolytech.centralUid;
       const central=centralConnected?`<div style="margin-top:16px;padding:16px;border:1px solid #dce8c7;border-radius:16px;background:#f7faef">
-          <div style="font-weight:700">СПбПУ подключён</div>
+          <div style="font-weight:700">PolytexBot подключён</div>
           <p class="page-sub" style="margin:6px 0 12px">Расписание и дедлайны будут обновляться автоматически.</p>
-          <button type="button" class="button ghost small" data-polytech-central-unlink>Отключить СПбПУ</button>
+          <button type="button" class="button ghost small" data-polytech-central-unlink>Отключить PolytexBot</button>
         </div>`:`<form id="polytechCentralForm" method="post" style="display:grid;gap:12px;margin-top:16px">
-          <label>Логин СДО<input name="username" autocomplete="username" required maxlength="200" placeholder="Логин от СДО Политеха"></label>
-          <label>Пароль СДО<input name="password" type="password" autocomplete="current-password" required maxlength="500" placeholder="Пароль от СДО Политеха"></label>
-          <label>Номер группы<input name="groupName" required maxlength="80" placeholder="Например, 4731204/60002"></label>
-          <button type="submit" class="button">Подключить ПолитехБота</button>
+          <label>Логин СДО<input name="username" autocomplete="username" required maxlength="200"></label>
+          <label>Пароль СДО<input name="password" type="password" autocomplete="current-password" required maxlength="500"></label>
+          <label>Номер группы<input name="groupName" required maxlength="80"></label>
+          <button type="submit" class="button">Подключить PolytexBot</button>
         </form>`;
-      return `<section class="card schedule-day" style="max-width:620px"><h2>СПбПУ</h2>
+      return `<section class="card schedule-day" style="max-width:620px"><h2>PolytexBot</h2>
         <p class="page-sub">Один раз введи данные — Absurd будет переносить твои дедлайны из СДО и расписание группы.</p>
         <p class="page-sub" style="margin-top:8px">Логин и пароль шифруются в браузере до отправки. Прочитать их может только закрытый сервис синхронизации.</p>
         ${polytechStatus?`<p class="page-sub" style="margin-top:8px">${safe(polytechStatus)}</p>`:''}
@@ -450,7 +458,7 @@
     document.addEventListener('click',async event=>{
       const centralUnlink=event.target.closest('[data-polytech-central-unlink]');
       if(centralUnlink){
-        if(!confirm('Отключить СПбПУ и удалить сохранённые данные синхронизации?'))return;
+        if(!confirm('Отключить PolytexBot и удалить сохранённые данные синхронизации?'))return;
         centralUnlink.disabled=true;
         try{await window.absurdPolytech.disconnectCentral();polytechStatus='';}
         catch{alert('Не удалось отключить СПбПУ. Попробуй ещё раз.');centralUnlink.disabled=false;}
@@ -469,7 +477,7 @@
         const values=new FormData(form);
         await window.absurdPolytech.connectCentral({username:values.get('username'),password:values.get('password'),groupName:values.get('groupName')});
         form.elements.password.value='';
-        polytechStatus='СПбПУ подключён. Первая синхронизация появится после ближайшей проверки.';
+        polytechStatus='PolytexBot подключён. Первая синхронизация появится после ближайшей проверки.';
         renderSafe();
       }catch(error){
         feedback.textContent=error?.message||'Не удалось подключить СПбПУ.';
@@ -492,6 +500,8 @@
       polytechRows=[];
       ruzLessons=[];
       polytechBotUid='';
+      polytechLinkKnown=false;
+      polytechLoading=true;
       polytechStatus='';
     });
     async function importDeadlines(file){
@@ -532,12 +542,12 @@
       }
       const renderRow=deadline=>{
         const status=deadlineStatus(deadline);
-        if(deadline.fromBot)return `<div class="list-item ${deadline.done?'done':''}"><input class="check" type="checkbox" data-polytech-done="${safe(deadline.key)}" ${deadline.done?'checked':''} ${deadline.completed?'disabled':''} aria-label="Отметить: ${safe(deadline.title)}"><a class="item-copy event-open" href="${safe(deadline.url)}" target="_blank" rel="noopener noreferrer"><span class="item-title">${safe(deadline.title)}</span><span class="item-meta">${safe(deadline.time)} · PolytechBot</span></a>${status&&status!=='Сегодня'?`<span class="tag ${status==='Просрочено'?'deadline-late':''}">${status}</span>`:''}</div>`;
+        if(deadline.fromBot)return `<div class="list-item ${deadline.done?'done':''}"><input class="check" type="checkbox" data-polytech-done="${safe(deadline.key)}" ${deadline.done?'checked':''} ${deadline.completed?'disabled':''} aria-label="Отметить: ${safe(deadline.title)}"><a class="item-copy event-open" href="${safe(deadline.url)}" target="_blank" rel="noopener noreferrer"><span class="item-title">${safe(deadline.title)}</span><span class="item-meta">${safe(deadline.time)} · PolytexBot</span></a>${status&&status!=='Сегодня'?`<span class="tag ${status==='Просрочено'?'deadline-late':''}">${status}</span>`:''}</div>`;
         return `<div class="list-item ${deadline.done?'done':''}"><input class="check" type="checkbox" data-deadline-check="${deadline.index}" ${deadline.done?'checked':''} aria-label="Отметить: ${safe(deadline.title)}"><button class="item-copy event-open" type="button" data-edit-deadline="${deadline.index}"><span class="item-title">${safe(deadline.title)}</span><span class="item-meta">${deadline.time?safe(deadline.time):'Без времени'}</span></button>${status&&status!=='Сегодня'?`<span class="tag ${status==='Просрочено'?'deadline-late':''}">${status}</span>`:''}<button class="icon-button" type="button" data-delete="deadline" data-index="${deadline.index}" aria-label="Удалить дедлайн">×</button></div>`;
       };
       const today=todayISO();
       const cards=[...groups].map(([date,items])=>`<section class="card schedule-day deadline-list${date===today?' deadline-day-current':''}"><div class="card-head"><div class="today-heading"><h2>${safe(formatDate(date))}</h2>${date===today?'<span class="tag deadline-today">СЕГОДНЯ</span>':''}</div><span class="eyebrow">${items.length} ${countLabel(items.length,'дедлайн','дедлайна','дедлайнов')}</span></div><div class="list">${items.map(renderRow).join('')}</div></section>`).join('');
-      return `<div class="entry-head"><div><div class="eyebrow">сроки задач</div><h1>Дедлайны</h1><p class="page-sub">Следи за сроками и отмечай выполненное.</p></div><div class="calendar-actions"><button class="button ghost small" type="button" data-import-deadlines>Импорт</button><button class="button" type="button" data-action="deadline-form">+ Добавить дедлайн</button><input type="file" id="deadlineIcsFile" accept=".ics,text/calendar" hidden></div></div>${cards||`<section class="card schedule-day deadline-list">${empty('Дедлайнов пока нет','Добавь задачу и укажи, к какому дню её нужно закончить.')}</section>`}`;
+      return `<div class="entry-head"><div><div class="eyebrow">сроки задач</div><h1>Дедлайны</h1><p class="page-sub">Следи за сроками и отмечай выполненное.</p>${polytechLoading?'<p class="page-sub" role="status">Загружаем дедлайны PolytexBot…</p>':''}</div><div class="calendar-actions"><button class="button ghost small" type="button" data-import-deadlines>Импорт</button><button class="button" type="button" data-action="deadline-form">+ Добавить дедлайн</button><input type="file" id="deadlineIcsFile" accept=".ics,text/calendar" hidden></div></div>${cards||`<section class="card schedule-day deadline-list">${polytechLoading?'':empty('Дедлайнов пока нет','Добавь задачу и укажи, к какому дню её нужно закончить.')}</section>`}`;
     }
     function finance(){const type=financeType,isIncome=type==='income',isSaving=type==='saving',isPositive=isIncome||isSaving,records=data.transactions.map((t,index)=>({...t,index})).filter(t=>t.type===type),total=records.reduce((sum,t)=>sum+expectedThisMonth(t),0),title=isSaving?'накопления':isIncome?'доходы':'расходы',action=isSaving?'Отложить деньги':`Добавить ${isIncome?'доход':'расход'}`,sectionTitle=isSaving?'Накопления':isIncome?'Поступления':'Расходы';return `<div class="entry-head"><div><div class="eyebrow">планируй деньги удобно</div><h1>Финансы</h1><p class="page-sub">Учитывай доходы, расходы и то, что откладываешь.</p></div><button class="button" data-action="${type}-form">+ ${action}</button></div>${budgetWarning()}<div class="segment" role="tablist" aria-label="Раздел финансов"><button type="button" role="tab" aria-selected="${isIncome}" class="segment-button ${isIncome?'active':''}" data-finance-tab="income">Доходы</button><button type="button" role="tab" aria-selected="${type==='expense'}" class="segment-button ${type==='expense'?'active':''}" data-finance-tab="expense">Расходы</button><button type="button" role="tab" aria-selected="${isSaving}" class="segment-button ${isSaving?'active':''}" data-finance-tab="saving">Накопления</button></div><div class="entry-stats"><div class="mini-stat"><div class="v ${isPositive?'positive':'negative'}">${money(total)}</div><div class="l">${title} за этот месяц</div></div><div class="mini-stat"><div class="v">${records.length}</div><div class="l">записей</div></div></div><section class="card"><div class="card-head"><span class="card-title">${sectionTitle}</span><span class="eyebrow">${records.length} ${records.length===1?'запись':'записей'}</span></div>${records.length?financeGroups(records,isIncome?'Доход':isSaving?'Накопления':'Расход',t=>{const r=t.repeat||{frequency:'none'},when=r.frequency==='weekly'?repeatDayLabel(r.weekday):r.frequency==='monthly'?'Каждое '+(r.monthDay||Number((t.date||'').slice(8,10)))+'-е число':formatDate(t.date);return `<div class="list-item transaction-row"><button type="button" class="transaction-open" data-transaction-details="${t.index}" aria-label="Подробнее: ${safe(t.title)}"><span class="tiny-icon ${isIncome?'green':isSaving?'purple':'orange'}">${icons.finance}</span><span class="item-copy"><span class="item-title">${safe(t.title)}</span><span class="item-meta">${safe(when)}${r.frequency!=='none'&&t.date?' · с '+safe(formatDate(t.date)):''}</span></span><span class="money-amount ${isPositive?'positive':'negative'}">${isPositive?'+':'−'}${money(t.amount)}</span></button><button class="icon-button" data-delete="transaction" data-index="${t.index}" aria-label="Удалить запись">×</button></div>`}):empty(isSaving?'Пока нет накоплений':isIncome?'Пока нет доходов':'Пока нет расходов',isSaving?'Добавь сумму, которую откладываешь, и выбери дату или повтор.':isIncome?'Добавь поступление и выбери, когда оно повторяется.':'Добавь трату и выбери, когда она повторяется.')}</section>`}
     function showTransactionDetails(index){const t=data.transactions[index];if(!t)return;const typeLabel=t.type==='income'?'Доход':t.type==='saving'?'Накопление':'Расход',r=t.repeat||{frequency:'none'},schedule=r.frequency==='weekly'?`${repeatDayLabel(r.weekday)}${t.date?' · начиная с '+formatDate(t.date):''}`:r.frequency==='monthly'?`Каждое ${r.monthDay||Number((t.date||'').slice(8,10))}-е число${t.date?' · начиная с '+formatDate(t.date):''}`:`Разово · ${formatDate(t.date)}`,category=t.category||(t.type==='income'?'Доход':t.type==='saving'?'Накопления':'Расход'),amountPrefix=t.type==='expense'?'−':'+';const dialog=$('#transactionDetailDialog');dialog.innerHTML=`<div style="padding:24px;min-width:min(420px,calc(100vw - 40px))"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div class="eyebrow">${typeLabel}</div><button class="icon-button" type="button" data-close-transaction-details aria-label="Закрыть">×</button></div><h2 style="font-size:22px;margin:14px 0 6px;overflow-wrap:anywhere">${safe(t.title)}</h2><div class="money-amount ${t.type==='expense'?'negative':'positive'}" style="font-size:20px;margin-bottom:20px">${amountPrefix}${money(t.amount)}</div><div style="display:grid;gap:12px;padding:16px;background:#f5f5f2;border-radius:12px"><div><div class="eyebrow">Дата и повтор</div><div style="margin-top:4px">${safe(schedule)}</div></div><div><div class="eyebrow">Категория</div><div style="margin-top:4px">${safe(category)}</div></div></div><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px"><button class="button small" type="button" data-edit-transaction="${index}">Редактировать</button></div></div>`;dialog.showModal()}
@@ -607,7 +617,7 @@
     }}if(kind==='income'||kind==='expense'||kind==='saving')setFinanceFrequency(formEl.querySelector('[data-frequency]').value);$('#modal').showModal();$('#modal form [name="title"]').focus()}
     function setScheduleMode(mode){const formEl=$('#modal form'),once=formEl.querySelector('[data-event-once]'),repeat=formEl.querySelector('[data-event-repeat]');if(!once||!repeat)return;formEl.dataset.scheduleMode=mode;once.hidden=mode!=='once';repeat.hidden=mode!=='repeat';once.querySelectorAll('input').forEach(x=>x.disabled=mode!=='once');repeat.querySelectorAll('input').forEach(x=>x.disabled=mode!=='repeat');const start=repeat.querySelector('[name=repeatStart]');if(start)start.disabled=mode!=='repeat';formEl.querySelectorAll('[data-schedule-mode]').forEach(b=>b.classList.toggle('active',b.dataset.scheduleMode===mode))}
     function setFinanceFrequency(value){const formEl=$('#modal form'),weekly=formEl.querySelector('.repeat-weekly'),monthly=formEl.querySelector('.repeat-monthly');if(!weekly||!monthly)return;weekly.hidden=value!=='weekly';monthly.hidden=value!=='monthly';weekly.querySelector('select').disabled=value!=='weekly';monthly.querySelector('input').disabled=value!=='monthly';const label=formEl.querySelector('[data-date-label]');if(label)label.textContent=value==='none'?'Дата':'Начать с даты'}
-    function account(){const email=$('#accountEmail').textContent.trim()||'—';const initial=(email[0]||'A').toUpperCase();return `<div class="entry-head"><div><div class="eyebrow">профиль</div><h1>Личный аккаунт</h1></div></div><section class="card" style="max-width:620px"><div style="display:flex;align-items:center;gap:14px"><div class="avatar" style="width:48px;height:48px;font-size:16px">${safe(initial)}</div><div><div style="font-weight:700;word-break:break-word">${safe(email)}</div><div class="item-meta" style="margin-top:5px">Email подтверждён</div></div></div><p class="item-meta" style="margin:20px 0 16px;line-height:1.6">Твои финансы, планы, мечты и цели сохраняются в этом аккаунте.</p><button class="button ghost small" type="button" data-account-logout>Выйти из аккаунта</button></section>${polytechPanel()}`}
+    function account(){const email=$('#accountEmail').textContent.trim()||'—';const initial=(email[0]||'A').toUpperCase();return `<div class="entry-head"><div><div class="eyebrow">профиль</div><h1>Личный аккаунт</h1></div></div><section class="card" style="max-width:620px"><div style="display:flex;align-items:center;gap:14px"><div class="avatar" style="width:48px;height:48px;font-size:16px">${safe(initial)}</div><div><div style="font-weight:700;word-break:break-word">${safe(email)}</div><div class="item-meta" style="margin-top:5px">Email подтверждён</div></div></div><p class="item-meta" style="margin:20px 0 16px;line-height:1.6">Ваши цели сохраняются в этом аккаунте.</p><button class="button ghost small" type="button" data-account-logout>Выйти из аккаунта</button></section>${polytechPanel()}`}
     function render(){const titles={home:'Обзор',finance:'Финансы',schedule:'Календарь',dreams:'Мечты',goals:'Цели',deadlines:'Дедлайны',account:'Личный аккаунт'};$('#crumb').textContent=labels[page];$('#content').innerHTML=({home,finance,schedule,dreams,goals,deadlines,account}[page])();document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));}
     function navigate(p){if(!labels[p])return;page=p;history.replaceState(null,'','#'+p);render();window.scrollTo({top:0,behavior:'smooth'})}
     document.addEventListener('click',event=>{
