@@ -133,6 +133,15 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
       if (!user?.emailVerified) throw new Error('Подтверди почту в Absurd.');
       return firebase.firestore().collection(collection).doc(user.uid);
     }
+    const cacheRead = key => {
+      try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
+    };
+    const cacheWrite = (key, value) => {
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+    };
+    const cacheRemove = key => {
+      try { localStorage.removeItem(key); } catch {}
+    };
     window.absurdPolytech = {
       centralUid: CENTRAL_BOT_UID,
       ownerUid: () => polytechRef('polytechLinks').id,
@@ -207,17 +216,29 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
         await polytechRef('polytechLinks').delete();
       },
       watchLinks(onChange, onError) {
-        return polytechRef('polytechLinks').onSnapshot({ includeMetadataChanges: true }, doc => {
+        const ref = polytechRef('polytechLinks');
+        const key = 'absurd-polytech-link:' + ref.id;
+        let cached = cacheRead(key);
+        if (typeof cached === 'string') onChange(cached);
+        return ref.onSnapshot({ includeMetadataChanges: true }, doc => {
           if (!doc.exists && doc.metadata.fromCache && !doc.metadata.hasPendingWrites) return;
-          onChange(doc.data()?.botUid || '');
+          const botUid = doc.data()?.botUid || '';
+          if (!doc.metadata.fromCache && !doc.metadata.hasPendingWrites) {
+            cacheWrite(key, botUid);
+            if (cached && cached !== botUid) cacheRemove('absurd-polytech-data:' + ref.id);
+            cached = botUid;
+          }
+          onChange(botUid);
         }, onError);
       },
       watchSnapshot(botUid, onChange, onError) {
+        const ref = polytechRef('polytechDeadlines');
+        const key = 'absurd-polytech-data:' + ref.id;
         let lastSnapshot;
-        return polytechRef('polytechDeadlines').onSnapshot({ includeMetadataChanges: true }, doc => {
-          const value = doc.data();
+        const showSnapshot = (value, fromCache, savedAt) => {
           if (value?.botUid !== botUid) {
-            if (!doc.metadata.fromCache && lastSnapshot !== null) {
+            if (!fromCache && lastSnapshot !== null) {
+              cacheRemove(key);
               lastSnapshot = null;
               onChange([], [], false);
             }
@@ -230,8 +251,17 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
             const schedule = rows.find(row => row?.key === '$ruz-schedule' && row.kind === 'ruz-schedule');
             const weeks = Object.values(schedule?.weeks || {});
             lastSnapshot = value.snapshot;
-            onChange(rows.filter(row => row?.key !== '$ruz-schedule'), weeks.flatMap(week => Array.isArray(week) ? week : []), true);
+            onChange(rows.filter(row => row?.key !== '$ruz-schedule'), weeks.flatMap(week => Array.isArray(week) ? week : []), true, savedAt);
           } catch { onError(); }
+        };
+        const cached = cacheRead(key);
+        showSnapshot(cached, true, cached?.savedAt);
+        return ref.onSnapshot({ includeMetadataChanges: true }, doc => {
+          const value = doc.data();
+          const fromCache = doc.metadata.fromCache || doc.metadata.hasPendingWrites;
+          const savedAt = Date.now();
+          if (!fromCache && value?.botUid === botUid) cacheWrite(key, { ...value, savedAt });
+          showSnapshot(value, fromCache, fromCache ? undefined : savedAt);
         }, onError);
       },
     };
@@ -258,7 +288,7 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
     const readCache = () => {
       try {
         const snapshot = localStorage.getItem(cacheKey());
-        return snapshot ? { exists: true, state: JSON.parse(snapshot), cached: true } : { exists: false, state: {}, cached: true };
+        return snapshot ? { exists: true, state: JSON.parse(snapshot), cached: true, savedAt: cacheRead(cacheKey() + ':time') } : { exists: false, state: {}, cached: true };
       } catch { return { exists: false, state: {}, cached: true }; }
     };
     window.absurdState = {
@@ -267,15 +297,22 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
         const key = cacheKey();
         const record = await stateRef().get({ source: 'server' });
         const snapshot = record.exists ? record.data().snapshot : '';
-        if (snapshot) {
-          try { localStorage.setItem(key, snapshot); } catch {}
-        }
-        return { exists: record.exists, state: snapshot ? JSON.parse(snapshot) : {}, cached: false };
+        const state = snapshot ? JSON.parse(snapshot) : {};
+        const savedAt = Date.now();
+        try { localStorage.setItem(key, JSON.stringify(state)); } catch {}
+        cacheWrite(key + ':time', savedAt);
+        return { exists: record.exists, state, cached: false, savedAt };
       },
       async write(snapshot) {
         if (new TextEncoder().encode(snapshot).length > 200_000) throw new Error('Слишком большой объём данных.');
-        localStorage.setItem(cacheKey(), snapshot);
-        return stateRef().set({ snapshot });
+        if (!navigator.onLine) throw new Error('Нет подключения к интернету.');
+        const key = cacheKey();
+        await stateRef().set({ snapshot });
+        if (auth.currentUser && key === 'absurd-cloud-cache:' + auth.currentUser.uid) {
+          try { localStorage.setItem(key, snapshot); } catch {}
+          cacheWrite(key + ':time', Date.now());
+          window.dispatchEvent(new Event('absurd:offline-copy-saved'));
+        }
       },
     };
     window.absurdAuth = {
@@ -292,6 +329,10 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
     let activeUid = '';
     auth.onAuthStateChanged(async user => {
       if (activeUid && (user?.uid !== activeUid || !user.emailVerified)) {
+        for (const key of ['absurd-cloud-cache:', 'absurd-polytech-link:', 'absurd-polytech-data:']) {
+          cacheRemove(key + activeUid);
+        }
+        cacheRemove('absurd-cloud-cache:' + activeUid + ':time');
         screen.hidden = false;
         announceAuthState(false);
         location.reload();
