@@ -209,6 +209,7 @@
     </aside>
     <main class="main">
       <header class="topbar"><div class="crumb"><a class="crumb-home" href="#home" data-go="home" aria-label="На главную страницу">absurd</a> <span style="color:#b5b7af">/</span> <span id="crumb">обзор</span></div><div class="top-right"><span class="hello">Хороший день, чтобы навести ясность</span><span class="account-email" id="accountEmail" hidden></span><button class="button ghost small account-trigger" type="button" data-page="account" aria-label="Личный аккаунт" title="Личный аккаунт"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c.6-4.2 3.3-6.5 8-6.5s7.4 2.3 8 6.5"/></svg></span></button><span class="date-pill" id="today"></span></div></header>
+      <p id="offlineNotice" class="card page-sub" role="status" style="padding:12px 16px;margin:0 0 16px;background:#fff4dc" hidden></p>
       <div id="content"></div>
       <footer class="footer"><span>absurd © 2026</span><span>маленькие шаги тоже движение</span></footer>
     </main>
@@ -218,7 +219,7 @@
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-firestore-compat.js"></script>
-  <script src="./auth-client.js?v=central-2"></script>
+  <script src="./auth-client.js?v=offline-1"></script>
   <script>
   (()=>{
     const KEY='absurd-routine-v1';
@@ -233,6 +234,30 @@
     const initialPage=location.hash.slice(1);
     if(Object.hasOwn(labels,initialPage))page=initialPage;
     const $=s=>document.querySelector(s);const money=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(Math.abs(n))+' ₽';
+    let accountSavedAt=0, polytexSavedAt=0;
+    function updateOfflineNotice(){
+      const notice=$('#offlineNotice');
+      notice.hidden=navigator.onLine;
+      if(notice.hidden)return;
+      const savedAt=Math.max(accountSavedAt,polytexSavedAt);
+      const label=savedAt?new Intl.DateTimeFormat('ru-RU',{dateStyle:'short',timeStyle:'short'}).format(new Date(savedAt)):'';
+      notice.textContent='Нет подключения к интернету · Только просмотр'+(label?' · Копия от '+label:'');
+    }
+    const offlineActions='[data-action],[data-import-ics],[data-import-deadlines],[data-toggle-event],[data-delete],[data-goal],[data-event],[data-deadline-check],[data-polytech-done],[data-goal-step],[data-polytech-central-unlink],[data-polytech-unlink],#deleteNote';
+    function blockOffline(event){
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const toast=$('#cloudToast');
+      toast.textContent='Нет подключения к интернету. Изменения доступны после подключения.';
+      toast.hidden=false;
+      setTimeout(()=>toast.hidden=true,3500);
+    }
+    document.addEventListener('click',event=>{
+      if(!navigator.onLine&&event.target.closest(offlineActions))blockOffline(event);
+    },true);
+    document.addEventListener('submit',event=>{
+      if(!navigator.onLine&&event.target.matches('#modal form,#polytechCentralForm'))blockOffline(event);
+    },true);
     const safe=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     function save(){localRevision++;render();if(!cloudReady)return;const snapshot=JSON.stringify(data);saveQueue=saveQueue.then(()=>window.absurdState.write(snapshot)).catch(()=>{const toast=document.getElementById('cloudToast');if(toast){toast.textContent='Не удалось сохранить. Проверь подключение и повтори действие.';toast.hidden=false;setTimeout(()=>toast.hidden=true,4500)}})}
     function dateLabel(){const d=new Date();return new Intl.DateTimeFormat('ru-RU',{weekday:'short',day:'numeric',month:'short'}).format(d).replace('.','')}
@@ -286,6 +311,7 @@
     async function importIcs(file){
       if(!file)return;
       const events=parseIcs(await file.text());
+      if(!navigator.onLine)throw new Error('Нет подключения к интернету.');
       const key=event=>JSON.stringify([event.icalUID,event.repeatDays?null:event.date||'']);
       const existing=new Map(data.events.filter(event=>event.icalUID).map(event=>[key(event),event]));
       let added=0,updated=0;
@@ -407,7 +433,9 @@
         polytechStatus=botUid?'Ожидаем первую успешную проверку.':'';
         renderPolytech();
         if(!botUid)return;
-        stopPolytechDeadlines=window.absurdPolytech.watchSnapshot(botUid,(rows,lessons,hasSnapshot)=>{
+        stopPolytechDeadlines=window.absurdPolytech.watchSnapshot(botUid,(rows,lessons,hasSnapshot,savedAt)=>{
+          polytexSavedAt=savedAt||0;
+          updateOfflineNotice();
           polytechLoading=false;
           polytechRows=rows.filter(row=>row&&safeMoodleUrl(row.url)&&
             /^\d{4}-\d{2}-\d{2}$/.test(row.date)&&/^\d{2}:\d{2}$/.test(row.time)&&
@@ -509,6 +537,7 @@
     async function importDeadlines(file){
       if(!file)return;
       const contents=(await file.text()).replace(/^\uFEFF/,'').replace(/\r?\n[ \t]/g,'');
+      if(!navigator.onLine)throw new Error('Нет подключения к интернету.');
       if(!/^BEGIN:VCALENDAR\s*$/im.test(contents))throw new Error('Выбери файл календаря .ics.');
       const known=new Set(data.deadlines.map(deadline=>deadline.importKey).filter(Boolean));
       const added=[];
@@ -709,6 +738,8 @@
     const navFn=navigate;navigate=(p)=>{page=p;history.replaceState(null,'','#'+p);renderSafe();window.scrollTo({top:0,behavior:'smooth'})};
     bind();
     renderSafe();
+    updateOfflineNotice();
+    if('serviceWorker' in navigator) navigator.serviceWorker.register('./offline-worker.js').catch(()=>{});
     const calendarClock=()=>todayISO()+':'+[...data.events,...ruzLessons].map(event=>Number(eventTimePassed(event))).join('')+':'+[...data.deadlines,...botDeadlines()].map(deadline=>deadlineStatus(deadline)).join('|');
     let lastCalendarClock=calendarClock();
     function refreshCalendarClock(){
@@ -722,20 +753,41 @@
     }
     setInterval(refreshCalendarClock,1000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshCalendarClock()});
-    const applyCloudResult=result=>{data={...blank,...result.state};data.events=(data.events||[]).map(e=>({...e,date:e.date||todayISO()}));data.deadlines=data.deadlines||[];if(!Array.isArray(data.notes))data.notes=[]};
+    const applyCloudResult=result=>{data={...blank,...result.state};data.events=(data.events||[]).map(e=>({...e,date:e.date||todayISO()}));data.deadlines=data.deadlines||[];if(!Array.isArray(data.notes))data.notes=[];accountSavedAt=result.savedAt||0;updateOfflineNotice()};
     const showCloudError=()=>{const loading=document.getElementById('cloudLoading');if(loading){loading.innerHTML='Не получилось загрузить данные аккаунта.<br><br>Проверь подключение и попробуй ещё раз.<br><br><button id="retryCloudLoad" type="button" style="border:0;border-radius:10px;background:#171816;color:white;padding:10px 14px;cursor:pointer">Повторить</button>';document.getElementById('retryCloudLoad')?.addEventListener('click',()=>{cloudLoadStarted=false;loadCloudState()},{once:true})}};
     const loadCloudState=async()=>{
       if(cloudLoadStarted)return;
       cloudLoadStarted=true;
       const cached=window.absurdState.readCached?.();
+      if(!navigator.onLine&&!cached?.exists){
+        cloudLoadStarted=false;
+        const loading=$('#cloudLoading');
+        if(loading)loading.textContent='Нет подключения к интернету. Подключитесь к сети, чтобы загрузить данные аккаунта.';
+        return;
+      }
       if(cached?.exists){
         applyCloudResult(cached);cloudReady=true;document.getElementById('cloudLoading')?.remove();renderSafe();
+        if(!navigator.onLine)return;
         const revisionBeforeRefresh=localRevision;
         window.absurdState.read().then(result=>{if(localRevision!==revisionBeforeRefresh)return;if(result.exists){applyCloudResult(result);renderSafe()}}).catch(()=>{});
         return;
       }
       try{const result=await window.absurdState.read();applyCloudResult(result);if(!result.exists){let legacy=null;try{legacy=JSON.parse(localStorage.getItem(KEY)||'null')}catch{}if(legacy&&Array.isArray(legacy.transactions)&&Array.isArray(legacy.events)&&Array.isArray(legacy.dreams)&&Array.isArray(legacy.goals)&&confirm('В этом браузере найдены старые данные без аккаунта. Перенести их в этот аккаунт?')){data={...blank,...legacy};data.events=(data.events||[]).map(e=>({...e,date:e.date||todayISO()}));localStorage.removeItem(KEY);}}cloudReady=true;document.getElementById('cloudLoading')?.remove();renderSafe();if(!result.exists&&Object.values(data).some(items=>items.length))save()}catch{cloudLoadStarted=false;showCloudError()}
     };
+    window.addEventListener('offline',updateOfflineNotice);
+    window.addEventListener('online',()=>{
+      updateOfflineNotice();
+      if(!window.absurdAuthenticated)return;
+      if(!cloudReady){loadCloudState();return}
+      const revision=localRevision;
+      saveQueue.then(()=>window.absurdState.read()).then(result=>{
+        if(revision===localRevision&&window.absurdAuthenticated){applyCloudResult(result);renderSafe()}
+      }).catch(()=>{});
+    });
+    window.addEventListener('absurd:offline-copy-saved',()=>{
+      accountSavedAt=window.absurdState.readCached().savedAt||accountSavedAt;
+      updateOfflineNotice();
+    });
     window.addEventListener('absurd:auth-checked',()=>{if(!window.absurdAuthenticated)document.getElementById('cloudLoading')?.remove()});if(window.absurdAuthChecked&&!window.absurdAuthenticated)document.getElementById('cloudLoading')?.remove();setTimeout(()=>{if(!window.absurdAuthChecked&&!window.absurdAuthenticated){const screen=document.getElementById('authScreen');if(screen)screen.hidden=false;const message=document.getElementById('authMessage');if(message)message.textContent='Не удалось проверить вход. Проверь подключение и попробуй войти ещё раз.';document.getElementById('cloudLoading')?.remove()}},8000);window.addEventListener('absurd:auth-ready',loadCloudState);if(window.absurdAuthenticated)loadCloudState();
     window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(labels[h])navigate(h)});
   })();
