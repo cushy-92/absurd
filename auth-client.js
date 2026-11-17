@@ -88,6 +88,41 @@ const firebaseConfig = {
     const auth = firebase.auth();
     auth.languageCode = 'ru';
     await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+    const CENTRAL_BOT_UID = '9vWAFebDZmQIlMxnR3jcgVRytaU2';
+    const CENTRAL_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAtlA1IHiRMfcxXIVhyp3w
+r6k6LoPOh6c/YHpTSAAO8BeHQV3dl6va6fjpwLGOz0Y12rGIOpmkLXXbTjGGgGZk
+6j7jbxheVcZx7sdZzeKwD/IAzkKhp5taIRztZhT7ImyzpL/p4/8OE+GYG8vskhE8
+KRuGIIGQgCcphufp0JnttkQxSTl7Kah3MX4cCh/TRIWpJVv3/Cn7Lur1DGL/E3Gu
+ykAyos3ou564kQM02L9l6deYOgebTf2qWAUiOuIt0tCRyaK2f3hJD8WQrAltJkfW
+ULYKO4/nQyelfN/2QYVIBn05EmeJUoByJ9P4nRXfgmNFmstWV3WOwLKlA15ol/DK
+teNxy3CSrV0q7obBxrvOnLuF4AWL7ovsqDklC8Za8GkE6aBa4Bi/dcbtgigLWE/a
+IP2OyDXxJA3+Nt8Scyzjzc5uKaBQGysTisjeZyYoJp0/UB5MKOXlhV42bF4hZmdF
+ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
+-----END PUBLIC KEY-----`;
+    const toBase64 = value => {
+      const bytes = new Uint8Array(value);
+      let binary = '';
+      for (const byte of bytes) binary += String.fromCharCode(byte);
+      return btoa(binary);
+    };
+    const publicKeyBytes = () => {
+      const binary = atob(CENTRAL_PUBLIC_KEY.replace(/-----[^-]+-----|\s/g, ''));
+      return Uint8Array.from(binary, character => character.charCodeAt(0));
+    };
+    async function encryptPolytechCredentials(username, password) {
+      if (!window.crypto?.subtle) throw new Error('Шифрование недоступно в этом браузере.');
+      const publicKey = await crypto.subtle.importKey(
+        'spki', publicKeyBytes(), { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['encrypt']
+      );
+      const aesKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt']);
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const plaintext = new TextEncoder().encode(JSON.stringify({ username, password }));
+      const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aesKey, plaintext);
+      const rawKey = await crypto.subtle.exportKey('raw', aesKey);
+      const wrappedKey = await crypto.subtle.encrypt({ name: 'RSA-OAEP' }, publicKey, rawKey);
+      return { wrappedKey: toBase64(wrappedKey), iv: toBase64(iv), ciphertext: toBase64(ciphertext) };
+    }
     const stateRef = () => {
       const user = auth.currentUser;
       if (!user?.emailVerified) throw new Error('Нужно войти и подтвердить почту.');
@@ -99,7 +134,37 @@ const firebaseConfig = {
       return firebase.firestore().collection(collection).doc(user.uid);
     }
     window.absurdPolytech = {
+      centralUid: CENTRAL_BOT_UID,
       ownerUid: () => polytechRef('polytechLinks').id,
+      async connectCentral({ username, password, groupName }) {
+        const user = auth.currentUser;
+        if (!user?.emailVerified) throw new Error('Подтверди почту в Absurd.');
+        username = String(username || '').trim();
+        password = String(password || '');
+        groupName = String(groupName || '').trim();
+        if (!username || username.length > 200 || !password || password.length > 500) {
+          throw new Error('Проверь логин и пароль СПбПУ.');
+        }
+        if (!/^[\p{L}\p{N}][\p{L}\p{N}/ ._-]{0,79}$/u.test(groupName)) {
+          throw new Error('Проверь номер группы.');
+        }
+        const encrypted = await encryptPolytechCredentials(username, password);
+        if (auth.currentUser !== user) throw new Error('Аккаунт изменился. Подключи СПбПУ ещё раз.');
+        const batch = firebase.firestore().batch();
+        batch.set(polytechRef('polytechConnections'), { ...encrypted, groupName, active: true });
+        batch.set(polytechRef('polytechLinks'), { botUid: CENTRAL_BOT_UID });
+        await batch.commit();
+      },
+      async disconnectCentral() {
+        const connection = polytechRef('polytechConnections');
+        const links = polytechRef('polytechLinks');
+        const deadlines = polytechRef('polytechDeadlines');
+        const batch = firebase.firestore().batch();
+        batch.delete(connection);
+        batch.delete(links);
+        batch.delete(deadlines);
+        await batch.commit();
+      },
       async createBotKey() {
         const user = auth.currentUser;
         if (!user?.emailVerified) throw new Error('Подтверди почту в Absurd.');
@@ -158,6 +223,21 @@ const firebaseConfig = {
         }, onError);
       },
     };
+    const googleProvider = new firebase.auth.GoogleAuthProvider();
+    googleProvider.setCustomParameters({ prompt: 'select_account' });
+    document.querySelectorAll('[data-google-signin]').forEach(button => button.addEventListener('click', async () => {
+      button.disabled = true;
+      try {
+        await auth.signInWithPopup(googleProvider);
+      } catch (error) {
+        if (error.code === 'auth/popup-blocked' || error.code === 'auth/operation-not-supported-in-this-environment') {
+          await auth.signInWithRedirect(googleProvider);
+          return;
+        }
+        showAuthPanel();
+        say(errors[error.code] || 'Не удалось войти через Google.', true);
+      } finally { button.disabled = false; }
+    }));
     const cacheKey = () => {
       const user = auth.currentUser;
       if (!user?.emailVerified) throw new Error('Нужно войти и подтвердить почту.');
