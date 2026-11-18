@@ -1,22 +1,24 @@
-const CACHE = 'absurd-shell-v5';
+const CACHE = 'absurd-shell-v6';
 const root = self.registration.scope;
 const shell = new URL('./', root).href;
 const assets = new Set([
-  new URL('auth-client.js?v=offline-5', root).href,
-  new URL('absurd-icon.svg', root).href,
+  new URL('auth-client.js?v=offline-6', root).href,
+  new URL('absurd-mark.svg', root).href,
   new URL('manifest.webmanifest', root).href,
+  new URL('absurd-mark-192.png', root).href,
+  new URL('absurd-mark-512.png', root).href,
 ]);
 
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
     await Promise.all([shell, ...assets].map(async url => {
-      const response = await fetch(url === shell ? shell + '?shell=offline-5' : url, {
+      const response = await fetch(url === shell ? shell + '?shell=offline-6' : url, {
         mode: 'same-origin',
         cache: 'reload',
       });
       if (!response.ok && response.type !== 'opaque') throw new Error('App asset unavailable');
-      if (url === shell && !(await response.clone().text()).includes('auth-client.js?v=offline-5')) {
+      if (url === shell && !(await response.clone().text()).includes('auth-client.js?v=offline-6')) {
         throw new Error('Offline shell version not published yet');
       }
       await cache.put(url, response);
@@ -27,7 +29,7 @@ self.addEventListener('install', event => {
 
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
-    await Promise.all((await caches.keys()).filter(key => key === 'absurd-shell-v1' || key === 'absurd-shell-v2' || key === 'absurd-shell-v3' || key === 'absurd-shell-v4').map(key => caches.delete(key)));
+    await Promise.all((await caches.keys()).filter(key => key === 'absurd-shell-v1' || key === 'absurd-shell-v2' || key === 'absurd-shell-v3' || key === 'absurd-shell-v4' || key === 'absurd-shell-v5').map(key => caches.delete(key)));
     await self.clients.claim();
   })());
 });
@@ -49,7 +51,7 @@ self.addEventListener('push', event => {
   event.waitUntil((async () => {
     const body = count === 1 ? 'Один дедлайн в ближайшие 24 часа.' : 'Дедлайнов в ближайшие 24 часа: ' + count + '.';
     await self.registration.showNotification('Дедлайны Absurd', {
-      body, tag: 'absurd-deadlines', icon: new URL('absurd-icon.svg', root).href,
+      body, tag: 'absurd-deadlines', icon: new URL('absurd-mark.svg', root).href,
     });
     if (typeof account !== 'string' || !/^[A-Za-z0-9_-]{20,128}$/.test(account) ||
         typeof id !== 'string' || !/^[a-f0-9]{30}$/.test(id)) return;
@@ -98,7 +100,7 @@ self.addEventListener('fetch', event => {
     try {
       const response = await fetch(request, navigation ? { cache: 'no-store' } : undefined);
       if (response.ok || response.type === 'opaque') {
-        if (navigation && !(await response.clone().text()).includes('auth-client.js?v=offline-5')) {
+        if (navigation && !(await response.clone().text()).includes('auth-client.js?v=offline-6')) {
           return response;
         }
         try { await cache.put(key, response.clone()); } catch {}

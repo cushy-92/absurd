@@ -90,7 +90,9 @@
     if (!Array.isArray(rows)) throw new Error('Unexpected PolytexBot snapshot');
     const schedule = rows.find(row => row?.key === '$ruz-schedule' && row.kind === 'ruz-schedule');
     const weeks = Object.values(schedule?.weeks || {});
-    return [rows.filter(row => row?.key !== '$ruz-schedule'), weeks.flatMap(week => Array.isArray(week) ? week : [])];
+    const grades = rows.find(row => row?.key === '$sdo-grades')?.portals ?? null;
+    const deadlines = rows.filter(row => row?.key !== '$ruz-schedule' && row?.key !== '$sdo-grades');
+    return [deadlines, weeks.flatMap(week => Array.isArray(week) ? week : []), grades];
   };
   const centralUid = '9vWAFebDZmQIlMxnR3jcgVRytaU2';
   if (!navigator.onLine || document.documentElement.hasAttribute('data-offline-shell')) {
@@ -113,7 +115,7 @@
           const copy = cacheRead('absurd-polytech-data:' + account.uid);
           try {
             if (copy?.botUid === botUid) onChange(...decodePolytex(copy.snapshot), true, copy.savedAt);
-            else onChange([], [], false);
+            else onChange([], [], null, false);
           } catch { onError(); }
           return () => {};
         },
@@ -303,7 +305,7 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
             if (!fromCache && lastSnapshot !== null) {
               cacheRemove(key);
               lastSnapshot = null;
-              onChange([], [], false);
+              onChange([], [], null, false);
             }
             return;
           }
