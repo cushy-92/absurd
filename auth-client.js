@@ -438,6 +438,39 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
     const logoutButton = document.getElementById('logoutButton');
     if (logoutButton) logoutButton.addEventListener('click', signOut);
 
+    function verificationHint(user) {
+      return `Проверь почту ${user.email || 'своего аккаунта'} и папку «Спам». После перехода по ссылке нажми «Я подтвердил email».`;
+    }
+
+    async function sendVerification(user) {
+      if (resend.disabled) return;
+      unverifiedUser = user;
+      resend.hidden = false;
+      checkEmail.hidden = false;
+      resend.disabled = true;
+      say('Отправляем письмо с подтверждением…');
+      try {
+        await user.sendEmailVerification();
+        if (unverifiedUser?.uid === user.uid) {
+          say(`Запрос на отправку принят. ${verificationHint(user)}`);
+        }
+      } catch (error) {
+        if (unverifiedUser?.uid !== user.uid) return;
+        const reasons = {
+          'auth/quota-exceeded': 'Сервис достиг лимита отправки писем. Попробуй позже.',
+          'auth/invalid-sender': 'Сервис отклонил настройки отправителя письма.',
+          'auth/invalid-message-payload': 'Сервис отклонил шаблон письма.',
+          'auth/invalid-recipient-email': 'Сервис отклонил адрес получателя.',
+          'auth/user-token-expired': 'Сеанс истёк. Войди в аккаунт и запроси письмо повторно.',
+        };
+        const reason = reasons[error.code] || errors[error.code] || 'Попробуй отправить письмо повторно.';
+        const code = error.code ? ` (${error.code})` : '';
+        say(`Аккаунт создан. Не удалось отправить письмо. ${reason}${code}`, true);
+      } finally {
+        resend.disabled = false;
+      }
+    }
+
     let activeUid = '';
     auth.onAuthStateChanged(async user => {
       if (activeUid && (user?.uid !== activeUid || !user.emailVerified)) {
@@ -447,6 +480,7 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
         location.reload();
         return;
       }
+      const alreadyWaiting = unverifiedUser && unverifiedUser.uid === user?.uid;
       unverifiedUser = user && !user.emailVerified ? user : null;
       resend.hidden = !unverifiedUser;
       checkEmail.hidden = !unverifiedUser;
@@ -472,7 +506,7 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
         announceAuthState(false);
         if (unverifiedUser) {
           showAuthPanel();
-          say('Открой письмо с подтверждением email, затем вернись сюда и войди. Проверь папку «Спам».');
+          if (!alreadyWaiting) say(verificationHint(unverifiedUser));
         }
       }
     });
@@ -485,16 +519,16 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
       try {
         if (mode === 'signup') {
           const credential = await auth.createUserWithEmailAndPassword(email, password);
-          await credential.user.sendEmailVerification();
-          unverifiedUser = credential.user;
-          resend.hidden = false;
-          say('Письмо отправлено. Подтверди email и затем войди.');
+          setMode('login');
+          passwordInput.value = '';
+          await sendVerification(credential.user);
         } else {
           const credential = await auth.signInWithEmailAndPassword(email, password);
           if (!credential.user.emailVerified) {
             unverifiedUser = credential.user;
             resend.hidden = false;
-            say('Сначала подтверди адрес по ссылке из письма.', true);
+            checkEmail.hidden = false;
+            say(verificationHint(credential.user));
           }
         }
       } catch (error) {
@@ -515,9 +549,7 @@ ffs+Jl1W616eyMuQQ3+qfvLYYtanP1HJIveGIdX0fteVAgMBAAE=
       catch { say('Не удалось проверить адрес. Попробуй ещё раз.', true); }
     });
     resend.addEventListener('click', async () => {
-      if (!unverifiedUser) return;
-      try { await unverifiedUser.sendEmailVerification(); say('Письмо с подтверждением отправлено ещё раз.'); }
-      catch (error) { say(errors[error.code] || 'Не удалось отправить письмо. Попробуй позже.', true); }
+      if (unverifiedUser) await sendVerification(unverifiedUser);
     });
     submit.disabled = false;
   } catch (error) {

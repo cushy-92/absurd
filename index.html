@@ -241,7 +241,7 @@
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-firestore-compat.js"></script>
-  <script src="./auth-client.js?v=offline-6"></script>
+  <script src="./auth-client.js?v=offline-7"></script>
   <script>
   (()=>{
     const KEY='absurd-routine-v1';
@@ -849,7 +849,7 @@
     function updateOfflineReady(){
       const label=$('#offlineReady');
       if(!label)return;
-      const ready=!offlineMode()&&navigator.serviceWorker?.controller?.scriptURL.endsWith('offline-worker.js?v=6')&&window.absurdState?.readCached()?.exists;
+      const ready=!offlineMode()&&navigator.serviceWorker?.controller?.scriptURL.endsWith('offline-worker.js?v=7')&&window.absurdState?.readCached()?.exists;
       label.hidden=!ready;
       if(ready)label.textContent='Офлайн-копия готова на этом устройстве';
     }
@@ -870,7 +870,7 @@
     bind();
     renderSafe();
     updateOfflineNotice();
-    if('serviceWorker' in navigator&&!offlineMode()) navigator.serviceWorker.register('./offline-worker.js?v=6').catch(()=>{});
+    if('serviceWorker' in navigator&&!offlineMode()) navigator.serviceWorker.register('./offline-worker.js?v=7').catch(()=>{});
     const calendarClock=()=>todayISO()+':'+[...data.events,...ruzLessons].map(event=>Number(eventTimePassed(event))).join('')+':'+[...data.deadlines,...botDeadlines()].map(deadline=>deadlineStatus(deadline)).join('|');
     let lastCalendarClock=calendarClock();
     function refreshCalendarClock(){
