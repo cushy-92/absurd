@@ -1,8 +1,8 @@
-const CACHE = 'absurd-shell-v7';
+const CACHE = 'absurd-shell-v8';
 const root = self.registration.scope;
 const shell = new URL('./', root).href;
 const assets = new Set([
-  new URL('auth-client.js?v=offline-7', root).href,
+  new URL('auth-client.js?v=offline-8', root).href,
   new URL('absurd-mark.svg', root).href,
   new URL('manifest.webmanifest', root).href,
   new URL('absurd-mark-192.png', root).href,
@@ -13,12 +13,12 @@ self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
     await Promise.all([shell, ...assets].map(async url => {
-      const response = await fetch(url === shell ? shell + '?shell=offline-7' : url, {
+      const response = await fetch(url === shell ? shell + '?shell=offline-8' : url, {
         mode: 'same-origin',
         cache: 'reload',
       });
       if (!response.ok && response.type !== 'opaque') throw new Error('App asset unavailable');
-      if (url === shell && !(await response.clone().text()).includes('auth-client.js?v=offline-7')) {
+      if (url === shell && !(await response.clone().text()).includes('auth-client.js?v=offline-8')) {
         throw new Error('Offline shell version not published yet');
       }
       await cache.put(url, response);
@@ -29,7 +29,7 @@ self.addEventListener('install', event => {
 
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
-    await Promise.all((await caches.keys()).filter(key => key === 'absurd-shell-v1' || key === 'absurd-shell-v2' || key === 'absurd-shell-v3' || key === 'absurd-shell-v4' || key === 'absurd-shell-v5' || key === 'absurd-shell-v6').map(key => caches.delete(key)));
+    await Promise.all((await caches.keys()).filter(key => key === 'absurd-shell-v1' || key === 'absurd-shell-v2' || key === 'absurd-shell-v3' || key === 'absurd-shell-v4' || key === 'absurd-shell-v5' || key === 'absurd-shell-v6' || key === 'absurd-shell-v7').map(key => caches.delete(key)));
     await self.clients.claim();
   })());
 });
@@ -100,7 +100,7 @@ self.addEventListener('fetch', event => {
     try {
       const response = await fetch(request, navigation ? { cache: 'no-store' } : undefined);
       if (response.ok || response.type === 'opaque') {
-        if (navigation && !(await response.clone().text()).includes('auth-client.js?v=offline-7')) {
+        if (navigation && !(await response.clone().text()).includes('auth-client.js?v=offline-8')) {
           return response;
         }
         try { await cache.put(key, response.clone()); } catch {}
