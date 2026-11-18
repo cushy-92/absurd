@@ -41,9 +41,10 @@
     .note-delete svg{width:16px;height:16px;flex:none;fill:none;stroke:#b93c33;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
     .note-input{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:#fafaf8;color:var(--ink);font-size:16px;resize:vertical}
     @media(max-width:650px){
-      .home-head{flex-wrap:wrap;gap:12px}
-      .home-actions{margin-inline-start:auto}
-      .home-actions .button{min-height:44px}
+      .home-head{flex-direction:column;align-items:stretch;gap:10px;margin-bottom:14px}
+      .home-head .page-sub{max-width:none;margin-top:8px}
+      .home-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .home-actions .button{min-width:0;min-height:44px;padding-inline:8px;white-space:normal}
     }
     .weekday-picks{display:flex;gap:7px;flex-wrap:wrap}
     .weekday-picks label{display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:#fafaf8;font-size:11px;cursor:pointer}
@@ -246,7 +247,7 @@
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-firestore-compat.js"></script>
-  <script src="./auth-client.js?v=offline-10"></script>
+  <script src="./auth-client.js?v=offline-11"></script>
   <script>
   (()=>{
     const KEY='absurd-routine-v1';
@@ -869,7 +870,7 @@
     function updateOfflineReady(){
       const label=$('#offlineReady');
       if(!label)return;
-      const ready=!offlineMode()&&navigator.serviceWorker?.controller?.scriptURL.endsWith('offline-worker.js?v=10')&&window.absurdState?.readCached()?.exists;
+      const ready=!offlineMode()&&navigator.serviceWorker?.controller?.scriptURL.endsWith('offline-worker.js?v=11')&&window.absurdState?.readCached()?.exists;
       label.hidden=!ready;
       if(ready)label.textContent='Офлайн-копия готова на этом устройстве';
     }
@@ -890,7 +891,7 @@
     bind();
     renderSafe();
     updateOfflineNotice();
-    if('serviceWorker' in navigator&&!offlineMode()) navigator.serviceWorker.register('./offline-worker.js?v=10').catch(()=>{});
+    if('serviceWorker' in navigator&&!offlineMode()) navigator.serviceWorker.register('./offline-worker.js?v=11').catch(()=>{});
     const calendarClock=()=>todayISO()+':'+[...data.events,...ruzLessons].map(event=>Number(eventTimePassed(event))).join('')+':'+[...data.deadlines,...botDeadlines()].map(deadline=>deadlineStatus(deadline)).join('|');
     let lastCalendarClock=calendarClock();
     function refreshCalendarClock(){
