@@ -65,10 +65,15 @@
     .finance-category .list{margin-top:8px}
     .deadline-subject{display:block;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
     .deadline-meta{display:flex;flex-wrap:wrap;gap:4px 12px;overflow-wrap:anywhere}
-    .grades-table{width:100%;border-collapse:collapse;text-align:left}
+    .grades-card{border-color:#dfd5ef}
+    .grades-table{width:100%;border-collapse:separate;border-spacing:0;text-align:left}
     .grades-table th,.grades-table td{padding:12px 8px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+    .grades-table th{background:#f0e9fa;color:#503773;border-color:#dfd5ef}
+    .grades-table th:first-child{border-start-start-radius:10px}
+    .grades-table th:last-child{border-start-end-radius:10px}
     .grades-table th:last-child,.grades-table td:last-child{text-align:right;width:28%}
     .grades-table tbody tr:last-child td{border-bottom:0}
+    .grade-value{display:inline-block;max-width:100%;padding:3px 8px;border-radius:8px;background:#f0e9fa;color:#503773;font-weight:700;text-align:center}
     .deadline-late{background:#fbe7e3;color:#8c3224}
     .deadline-list{border-color:var(--line)}
     .deadline-list .card-head{flex-wrap:wrap;gap:8px}
@@ -241,7 +246,7 @@
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/13.3.0/firebase-firestore-compat.js"></script>
-  <script src="./auth-client.js?v=offline-8"></script>
+  <script src="./auth-client.js?v=offline-9"></script>
   <script>
   (()=>{
     const KEY='absurd-routine-v1';
@@ -621,7 +626,7 @@
       let body;
       if(rows.length){
         body=`<table class="grades-table"><thead><tr><th scope="col">Предмет</th><th scope="col">Оценка</th></tr></thead>
-          <tbody>${rows.map(row=>`<tr><td>${safe(row.subject)}</td><td>${safe(row.grade)}</td></tr>`).join('')}</tbody></table>`;
+          <tbody>${rows.map(row=>`<tr><td>${safe(row.subject)}</td><td><span class="grade-value">${safe(row.grade)}</span></td></tr>`).join('')}</tbody></table>`;
       }else if(polytechLoading){
         body='<p role="status">Загружаем оценки…</p>';
       }else if(!polytechBotUid){
@@ -636,7 +641,7 @@
       return `<div class="entry-head"><div><h1>Мои оценки</h1><p class="page-sub">Общая оценка по каждому предмету из СДО.</p></div>
         <a class="button ghost small" href="#deadlines" data-go="deadlines">К дедлайнам</a></div>
         ${partial?'<p class="page-sub" role="status">Данные пока получены не со всех порталов СДО.</p>':''}
-        <section class="card deadline-list">${body}</section>`;
+        <section class="card grades-card">${body}</section>`;
     }
     function deadlines(){
       const rows=[...data.deadlines.map((deadline,index)=>({...deadline,index})),...botDeadlines()]
@@ -864,7 +869,7 @@
     function updateOfflineReady(){
       const label=$('#offlineReady');
       if(!label)return;
-      const ready=!offlineMode()&&navigator.serviceWorker?.controller?.scriptURL.endsWith('offline-worker.js?v=8')&&window.absurdState?.readCached()?.exists;
+      const ready=!offlineMode()&&navigator.serviceWorker?.controller?.scriptURL.endsWith('offline-worker.js?v=9')&&window.absurdState?.readCached()?.exists;
       label.hidden=!ready;
       if(ready)label.textContent='Офлайн-копия готова на этом устройстве';
     }
@@ -885,7 +890,7 @@
     bind();
     renderSafe();
     updateOfflineNotice();
-    if('serviceWorker' in navigator&&!offlineMode()) navigator.serviceWorker.register('./offline-worker.js?v=8').catch(()=>{});
+    if('serviceWorker' in navigator&&!offlineMode()) navigator.serviceWorker.register('./offline-worker.js?v=9').catch(()=>{});
     const calendarClock=()=>todayISO()+':'+[...data.events,...ruzLessons].map(event=>Number(eventTimePassed(event))).join('')+':'+[...data.deadlines,...botDeadlines()].map(deadline=>deadlineStatus(deadline)).join('|');
     let lastCalendarClock=calendarClock();
     function refreshCalendarClock(){
